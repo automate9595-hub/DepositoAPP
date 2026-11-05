@@ -61,3 +61,16 @@ Sin dependencias npm: no hay `npm install` que pueda fallar. La librería de Sup
 
 ## Límites del plan gratuito (a tener en cuenta)
 Supabase Free pausa proyectos tras ~1 semana sin actividad (se reactiva desde el panel), 500 MB de base y 1 GB de archivos. Las fotos se reducen a ≤900 px antes de subirse.
+
+
+## Publicación automática sin Node.js en Windows
+
+La carpeta `docs/` ya contiene la versión web preparada. No ejecute `npm`, no instale Node.js y no use el antiguo `publicar.bat`.
+
+1. Ejecute `SUBIR_A_GITHUB_SIN_NODE.bat` o abra el repositorio desde el navegador.
+2. En GitHub, suba el contenido completo de esta carpeta del proyecto y confirme con **Commit changes** en la rama `main`.
+3. La primera vez, entre en **Settings → Pages → Build and deployment → Source** y seleccione **GitHub Actions**.
+4. Abra la pestaña **Actions**. El workflow `Publicar DepositoAPP en GitHub Pages` publicará automáticamente el contenido de `docs/`.
+5. Cuando la ejecución termine correctamente, la aplicación estará en `https://automate9595-hub.github.io/DepositoAPP/`.
+
+El workflow usa los archivos web ya preparados: no instala ni ejecuta Node.js en su computadora. La clave incluida en `docs/config.js` es la clave pública publishable de Supabase; nunca se incluye una clave secret/service_role.

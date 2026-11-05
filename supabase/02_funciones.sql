@@ -40,6 +40,12 @@ language sql stable security definer set search_path = public as $fn$
      and exists (select 1 from public.warehouse_workers w where w.profile_id = auth.uid() and w.active)
 $fn$;
 
+-- Puede preparar pedidos: personal de depósito activo O administración con permiso de pedidos.
+create or replace function public.can_prepare() returns boolean
+language sql stable security definer set search_path = public as $fn$
+  select public.is_worker() or public.has_perm('orders')
+$fn$;
+
 -- ---------- Triggers utilitarios ----------
 create or replace function public.touch_updated_at() returns trigger
 language plpgsql as $fn$
@@ -436,7 +442,7 @@ create or replace function public.start_preparation(p_order_id uuid)
 returns void language plpgsql security definer set search_path = public as $fn$
 declare v_o public.orders%rowtype;
 begin
-  if not public.is_worker() then raise exception 'NO_AUTORIZADO: solo el personal del depósito puede preparar pedidos'; end if;
+  if not public.can_prepare() then raise exception 'NO_AUTORIZADO: solo el depósito o la administración con permiso de pedidos pueden preparar pedidos'; end if;
   select * into v_o from public.orders where id = p_order_id for update;
   if not found then raise exception 'NO_ENCONTRADO: el pedido no existe'; end if;
   if v_o.status = 'APROBADO' then
@@ -455,7 +461,7 @@ create or replace function public.report_item(p_item_id uuid, p_qty int, p_reaso
 returns void language plpgsql security definer set search_path = public as $fn$
 declare v_it public.order_items%rowtype; v_o public.orders%rowtype; v_short boolean;
 begin
-  if not public.is_worker() then raise exception 'NO_AUTORIZADO: solo el personal del depósito puede preparar pedidos'; end if;
+  if not public.can_prepare() then raise exception 'NO_AUTORIZADO: solo el depósito o la administración con permiso de pedidos pueden preparar pedidos'; end if;
   select * into v_it from public.order_items where id = p_item_id;
   if not found then raise exception 'NO_ENCONTRADO: el producto del pedido no existe'; end if;
   select * into v_o from public.orders where id = v_it.order_id for update;
@@ -491,7 +497,7 @@ create or replace function public.unprepare_item(p_item_id uuid)
 returns void language plpgsql security definer set search_path = public as $fn$
 declare v_it public.order_items%rowtype; v_o public.orders%rowtype;
 begin
-  if not public.is_worker() then raise exception 'NO_AUTORIZADO: solo el personal del depósito puede preparar pedidos'; end if;
+  if not public.can_prepare() then raise exception 'NO_AUTORIZADO: solo el depósito o la administración con permiso de pedidos pueden preparar pedidos'; end if;
   select * into v_it from public.order_items where id = p_item_id;
   if not found then raise exception 'NO_ENCONTRADO: el producto del pedido no existe'; end if;
   select * into v_o from public.orders where id = v_it.order_id for update;
@@ -505,7 +511,7 @@ create or replace function public.finish_preparation(p_order_id uuid)
 returns void language plpgsql security definer set search_path = public as $fn$
 declare v_o public.orders%rowtype; v_short int; v_sup_profile uuid;
 begin
-  if not public.is_worker() then raise exception 'NO_AUTORIZADO: solo el personal del depósito puede preparar pedidos'; end if;
+  if not public.can_prepare() then raise exception 'NO_AUTORIZADO: solo el depósito o la administración con permiso de pedidos pueden preparar pedidos'; end if;
   select * into v_o from public.orders where id = p_order_id for update;
   if not found then raise exception 'NO_ENCONTRADO: el pedido no existe'; end if;
   if v_o.status not in ('EN_PREPARACION','PREPARADO_PARCIALMENTE') then
@@ -532,9 +538,12 @@ create or replace function public.assign_order(p_order_id uuid, p_worker uuid de
 returns void language plpgsql security definer set search_path = public as $fn$
 begin
   if not public.has_perm('orders') then raise exception 'NO_AUTORIZADO: no tiene permiso para asignar pedidos'; end if;
-  if p_worker is not null and not exists (select 1 from public.profiles p join public.warehouse_workers w on w.profile_id = p.id
-      where p.id = p_worker and p.active and p.role = 'deposito' and w.active) then
-    raise exception 'DATOS_INVALIDOS: el usuario indicado no es personal activo del depósito';
+  if p_worker is not null and not exists (
+      select 1 from public.profiles p where p.id = p_worker and p.active and (
+        (p.role = 'deposito' and exists (select 1 from public.warehouse_workers w where w.profile_id = p.id and w.active))
+        or p.role = 'admin_principal'
+        or (p.role = 'admin_secundario' and coalesce((p.permissions->>'orders')::boolean, false)))) then
+    raise exception 'DATOS_INVALIDOS: el usuario indicado no puede preparar pedidos';
   end if;
   update public.orders set assigned_to = p_worker, updated_at = now()
     where id = p_order_id and status in ('APROBADO','EN_PREPARACION','PREPARADO_PARCIALMENTE');

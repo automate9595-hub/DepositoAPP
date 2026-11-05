@@ -19,23 +19,45 @@ const P = {
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
   refresh: '<path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  volume: '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
+  mute: '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="m22 9-6 6M16 9l6 6"/>',
   truck: '<path d="M1 3h15v13H1zM16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
 };
-export const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${P[n] ?? ''}</svg>`;
+export const icon = (n, extra = '') => `<svg class="i${extra ? ' ' + extra : ''}" viewBox="0 0 24 24" aria-hidden="true">${P[n] ?? ''}</svg>`;
 export const logoSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + P.box + '</svg>';
+
+export const themeButton = (cls = 'iconbtn') => `<button type="button" class="${cls}" data-theme-toggle aria-label="Cambiar entre tema claro y oscuro" title="Tema claro / oscuro">${icon('sun', 'ico-sun')}${icon('moon', 'ico-moon')}</button>`;
+export const soundButton = (id = 'snd') => `<button type="button" class="iconbtn" id="${id}" data-sound-toggle aria-label="Activar o silenciar sonidos de aviso" title="Sonido de avisos">${icon('volume', 'on')}${icon('mute', 'off')}</button>`;
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 // ---------- Toasts ----------
-export function toast(msg, kind = '', ms = 4200) {
+function toastBox() {
   let box = $('.toasts');
   if (!box) { box = document.createElement('div'); box.className = 'toasts'; box.setAttribute('role', 'status'); box.setAttribute('aria-live', 'polite'); document.body.append(box); }
+  return box;
+}
+function dismiss(t) { if (!t.isConnected) return; t.classList.add('out'); setTimeout(() => t.remove(), 260); }
+export function toast(msg, kind = '', ms = 4200) {
   const t = document.createElement('div');
   t.className = `toast ${kind}`;
   t.textContent = msg;
-  box.append(t);
-  setTimeout(() => t.remove(), kind === 'bad' ? Math.max(ms, 6500) : ms);
+  toastBox().append(t);
+  setTimeout(() => dismiss(t), kind === 'bad' ? Math.max(ms, 6500) : ms);
+}
+// Aviso con botón de acción (por ejemplo "Activar sonido")
+export function toastAction(msg, label, onClick, ms = 12000) {
+  const t = document.createElement('div');
+  t.className = 'toast row between';
+  t.innerHTML = `<span class="grow"></span><button class="btn accent sm" type="button"></button>`;
+  t.firstChild.textContent = msg; t.lastChild.textContent = label;
+  t.lastChild.addEventListener('click', () => { dismiss(t); onClick?.(); });
+  toastBox().append(t);
+  setTimeout(() => dismiss(t), ms);
+  return t;
 }
 export const ok = (m) => toast(m, 'ok');
 export const fail = (m) => toast(m, 'bad');
@@ -56,7 +78,8 @@ export function modal(html, { onMount } = {}) {
     ov.className = 'overlay';
     ov.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
     const prevFocus = document.activeElement;
-    const close = (val) => { ov.remove(); document.removeEventListener('keydown', onKey); prevFocus?.focus?.(); resolve(val); };
+    let closed = false;
+    const close = (val) => { if (closed) return; closed = true; ov.classList.add('closing'); setTimeout(() => ov.remove(), 200); document.removeEventListener('keydown', onKey); prevFocus?.focus?.(); resolve(val); };
     const onKey = (e) => { if (e.key === 'Escape') close(null); };
     ov.addEventListener('click', (e) => { if (e.target === ov) close(null); });
     document.addEventListener('keydown', onKey);
@@ -93,7 +116,7 @@ export function askText(title, label, { required = true, okText = 'Aceptar', pla
 }
 
 // ---------- Fragmentos ----------
-export const spinner = (t = 'Cargando…') => `<div class="empty">${esc(t)}</div>`;
+export const spinner = (t = 'Cargando…') => `<div class="skeleton-list" aria-busy="true"><span class="sr">${esc(t)}</span><div></div><div></div><div></div></div>`;
 export const emptyBox = (t) => `<div class="empty">${esc(t)}</div>`;
 export const errorBox = (msg, retry = true) =>
   `<div class="card stack"><p class="notice bad">${esc(msg)}</p>${retry ? '<button class="btn block" data-retry>Reintentar</button>' : ''}</div>`;
@@ -117,4 +140,16 @@ export async function compressImage(file, maxSide = 900, quality = 0.82) {
   const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', quality));
   if (!blob) throw new Error('No se pudo procesar la imagen');
   return blob;
+}
+
+// Efecto "onda" al tocar botones y chips
+export function initEffects() {
+  document.addEventListener('pointerdown', (e) => {
+    const b = e.target.closest?.('.btn, .chip, .seg button');
+    if (!b || b.disabled || e.button > 0) return;
+    const r = b.getBoundingClientRect(); const size = Math.max(r.width, r.height);
+    const s = document.createElement('span'); s.className = 'ripple';
+    s.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - r.left - size / 2}px;top:${e.clientY - r.top - size / 2}px`;
+    b.append(s); setTimeout(() => s.remove(), 650);
+  }, { passive: true });
 }

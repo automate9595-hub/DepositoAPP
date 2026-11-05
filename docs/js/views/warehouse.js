@@ -8,6 +8,7 @@ const TABS = [['todo', 'Por preparar', ['APROBADO']], ['curso', 'En preparación
 
 export async function warehouseOrdersView(el, ctx) {
   if (ctx.args[0]) return detail(el, ctx, ctx.args[0]);
+  const base = '#/' + (ctx.path || 'pedidos');
   let tab = sessionStorage.getItem('wh-tab') || 'todo'; let gen = 0;
   el.innerHTML = `<div class="stack"><div class="chips">${TABS.map(([k, l]) => `<button class="chip ${k === tab ? 'on' : ''}" data-t="${k}">${l}</button>`).join('')}</div><div id="l" class="list"></div></div>`;
   const list = $('#l', el);
@@ -21,7 +22,7 @@ export async function warehouseOrdersView(el, ctx) {
   }
   el.addEventListener('click', (e) => {
     const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; sessionStorage.setItem('wh-tab', tab); $$('.chip', el).forEach((c) => c.classList.toggle('on', c === t)); list.innerHTML = spinner(); load(); return; }
-    const c = e.target.closest('[data-order]'); if (c) ctx.navigate('#/pedidos/' + c.dataset.order);
+    const c = e.target.closest('[data-order]'); if (c) ctx.navigate(base + '/' + c.dataset.order);
   });
   list.innerHTML = spinner(); await load();
   return { refresh: load, dispose: () => { gen++; } };
@@ -29,6 +30,8 @@ export async function warehouseOrdersView(el, ctx) {
 
 async function detail(el, ctx, id) {
   ctx.setTitle('Preparar pedido');
+  const base = '#/' + (ctx.path || 'pedidos');
+  const isAdm = ['admin_principal', 'admin_secundario'].includes(state.profile.role);
   async function load() {
     try {
       const o = await fetchOrder(id);
@@ -42,7 +45,9 @@ async function detail(el, ctx, id) {
     const working = ['EN_PREPARACION', 'PREPARADO_PARCIALMENTE'].includes(o.status);
     const items = o.items.filter((i) => (i.qty_approved ?? 0) > 0);
     const allDone = items.every((i) => i.prepared);
-    el.innerHTML = `<div class="stack"><a href="#/pedidos" class="small">← Pedidos</a>${summaryHtml(o)}
+    const doneN = items.filter((i) => i.prepared).length; const pct = items.length ? Math.round((doneN / items.length) * 100) : 0;
+    el.innerHTML = `<div class="stack"><div class="row between"><a href="${base}" class="small">← ${isAdm ? 'Preparación' : 'Pedidos'}</a>${isAdm ? `<a href="#/pedidos/${id}" class="small">Ver ficha del pedido</a>` : ''}</div>${summaryHtml(o)}
+      ${working ? `<div class="card stack"><div class="row between small"><b>Progreso de preparación</b><span class="mono muted">${doneN} de ${items.length} · ${pct}%</span></div><div class="progress"><i style="width:${pct}%"></i></div></div>` : ''}
       ${working && !mine ? `<p class="notice">${o.assigned_to ? 'Este pedido lo prepara otra persona.' : 'Pedido sin asignar.'}</p>` : ''}
       <div class="card">${items.map((i) => `<div class="line" data-item="${i.id}" data-ap="${i.qty_approved}" data-name="${esc(i.product_name)}">
         <div class="grow"><div class="pname">${esc(i.product_name)}</div><div class="muted small">${esc(i.product_code)}</div>

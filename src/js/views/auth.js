@@ -1,12 +1,12 @@
 import { supabase } from '../supa.js';
 import { friendly } from '../api.js';
 import { esc } from '../format.js';
-import { icon, logoSvg, $, busy } from '../ui.js';
+import { icon, logoSvg, $, busy, themeButton } from '../ui.js';
 
 const brand = `<div class="brand"><div class="logo">${logoSvg}</div><div><b>Depósito</b><div class="muted small">Gestión de stock y pedidos</div></div></div>`;
 
 export function renderLogin(app) {
-  app.innerHTML = `<div class="authwrap">${brand}
+  app.innerHTML = `<div class="aurora"></div>${themeButton('iconbtn fab')}<div class="authwrap">${brand}
     <form class="card stack" id="f" novalidate>
       <label class="field"><span>Correo electrónico</span><input name="email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" required></label>
       <label class="field"><span>Contraseña</span><input name="password" type="password" autocomplete="current-password" required></label>
@@ -32,7 +32,7 @@ export function renderLogin(app) {
 
 export function renderPending(app, profile, onLogout) {
   const inactive = profile && profile.role && !profile.active;
-  app.innerHTML = `<div class="authwrap">${brand}<div class="card stack">
+  app.innerHTML = `<div class="aurora"></div>${themeButton('iconbtn fab')}<div class="authwrap">${brand}<div class="card stack">
     <h2>${inactive ? 'Cuenta desactivada' : 'Cuenta pendiente de activación'}</h2>
     <p class="muted">${inactive
       ? 'El administrador desactivó su cuenta. Comuníquese con el depósito.'
@@ -45,7 +45,7 @@ export function renderPending(app, profile, onLogout) {
 }
 
 export function renderOffline(app, msg, onRetry, onLogout) {
-  app.innerHTML = `<div class="authwrap">${brand}<div class="card stack">
+  app.innerHTML = `<div class="aurora"></div>${themeButton('iconbtn fab')}<div class="authwrap">${brand}<div class="card stack">
     <h2>No se pudo conectar</h2><p class="notice bad">${esc(msg)}</p>
     <button class="btn primary block" id="re">Reintentar</button>
     <button class="btn ghost block" id="out">Cerrar sesión</button></div></div>`;
@@ -54,7 +54,7 @@ export function renderOffline(app, msg, onRetry, onLogout) {
 }
 
 export function renderSetupError(app) {
-  app.innerHTML = `<div class="authwrap">${brand}<div class="card stack">
+  app.innerHTML = `<div class="aurora"></div>${themeButton('iconbtn fab')}<div class="authwrap">${brand}<div class="card stack">
     <h2>Falta configurar Supabase</h2>
     <p class="notice bad">Esta publicación no tiene la URL y la clave pública de Supabase.</p>
     <p class="muted">Ejecute <b>publicar.bat</b> (o <code>npm run build</code> con las variables SUPABASE_URL y SUPABASE_ANON_KEY) y vuelva a publicar.</p></div></div>`;

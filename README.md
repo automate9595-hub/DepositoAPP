@@ -74,3 +74,13 @@ La carpeta `docs/` ya contiene la versión web preparada. No ejecute `npm`, no i
 5. Cuando la ejecución termine correctamente, la aplicación estará en `https://automate9595-hub.github.io/DepositoAPP/`.
 
 El workflow usa los archivos web ya preparados: no instala ni ejecuta Node.js en su computadora. La clave incluida en `docs/config.js` es la clave pública publishable de Supabase; nunca se incluye una clave secret/service_role.
+
+
+## Novedades de esta versión (rediseño)
+
+* **Tema claro y oscuro**: botón sol/luna en la barra superior (y en Cuenta: Automático / Claro / Oscuro). Se recuerda por dispositivo.
+* **Sonido de avisos**: botón de altavoz en la barra superior o en Cuenta. Suena al llegar un pedido o cambiar su estado (sonidos distintos para pedido nuevo, listo y faltante/cancelado). El navegador solo permite audio después de tocar la pantalla una vez.
+* **Administración prepara pedidos**: nueva pestaña **Preparación** (principal, o segundo administrador con permiso "Pedidos"). Mismo flujo que el depósito: comenzar, marcar *Preparado* o *Faltante*, finalizar (queda *Listo para entregar*) y confirmar entrega. En un pedido también puede asignárselo a sí mismo.
+  **Importante:** si su base de Supabase ya estaba instalada, ejecute UNA vez `supabase/05_admin_prepara.sql` en el SQL Editor. (Instalaciones nuevas: ya viene incluido en `instalar_todo.sql`.)
+* **Actualización automática**: al subir cambios a `main`, GitHub Actions compila `src/` con un número de versión nuevo y publica. Las apps instaladas lo detectan (al abrir, al volver a primer plano, al recuperar Internet y cada 5 minutos) y se actualizan solas, sin interrumpir formularios ni ventanas abiertas. Para cambiar la app basta con subir los archivos modificados de `src/`.
+* **Visual**: transiciones entre pantallas, listas con entrada escalonada, esqueletos de carga, efecto onda en botones, menú lateral en pantallas grandes, hojas y avisos animados. Se respeta "reducir movimiento" del sistema.

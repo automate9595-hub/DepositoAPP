@@ -2,7 +2,11 @@ import { supabase } from '../supa.js';
 import { state, bus } from '../state.js';
 import { read, rpc, friendly } from '../api.js';
 import { esc, dateTime, roleLabel } from '../format.js';
-import { icon, $, busy, ok, fail, emptyBox, errorBox, spinner } from '../ui.js';
+import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner } from '../ui.js';
+import { themePref, setTheme } from '../theme.js';
+import { soundEnabled, setSound, previewSound } from '../sound.js';
+
+const APP_VERSION = (() => { try { return new URL(import.meta.url).searchParams.get('v') || ''; } catch { return ''; } })();
 
 let installEvt = null;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
@@ -25,14 +29,26 @@ export async function accountView(el) {
         <button class="btn block">Cambiar contraseña</button>
       </form>
     </div>
+    <div class="card stack"><h3>Apariencia y sonido</h3>
+      <div class="seg" id="theme" role="group" aria-label="Tema">${[['auto', 'Automático', 'refresh'], ['light', 'Claro', 'sun'], ['dark', 'Oscuro', 'moon']].map(([k, l, i]) => `<button type="button" data-th="${k}" class="${themePref() === k ? 'on' : ''}">${icon(i)}${l}</button>`).join('')}</div>
+      <div class="row between"><div class="grow"><b>Sonido de avisos</b><div class="muted small">Suena cuando llega un pedido o cambia su estado.</div></div>
+        <button type="button" class="switch" id="sw" role="switch" aria-label="Sonido de avisos" aria-checked="${soundEnabled()}"></button></div>
+      <button type="button" class="btn sm" id="tst">${icon('volume')} Probar sonido</button>
+    </div>
     <div class="card stack"><h3>Aplicación</h3>
       ${notifOk ? `<button class="btn block" id="np">${icon('bell')} Activar avisos del sistema</button>
       <p class="muted small">Con la app abierta o en segundo plano, el teléfono mostrará un aviso cuando llegue algo nuevo. Si Android cierra la app por completo, verá los avisos al volver a abrirla.</p>` : ''}
       <button class="btn block ${installEvt ? '' : 'hidden'}" id="ins">Instalar en el teléfono</button>
       <button class="btn block" id="upd">${icon('refresh')} Buscar actualización</button>
+      <p class="muted small">La aplicación se actualiza sola cuando se publica una versión nueva.${APP_VERSION ? ` Versión instalada: <span class="mono">${esc(APP_VERSION)}</span>` : ''}</p>
     </div>
     <button class="btn danger block" id="out">${icon('logout')} Cerrar sesión</button></div>`;
 
+  $$('[data-th]', el).forEach((b) => b.addEventListener('click', () => { setTheme(b.dataset.th); $$('[data-th]', el).forEach((x) => x.classList.toggle('on', x === b)); }));
+  $('#sw', el).addEventListener('click', (e) => { const on = e.currentTarget.getAttribute('aria-checked') !== 'true'; setSound(on); e.currentTarget.setAttribute('aria-checked', String(on)); });
+  const syncSw = () => $('#sw', el)?.setAttribute('aria-checked', String(soundEnabled()));
+  document.addEventListener('soundchange', syncSw);
+  $('#tst', el).addEventListener('click', () => { if (!previewSound('order')) fail('Este navegador no permite reproducir sonido.'); });
   $('#pf', el).addEventListener('submit', async (e) => {
     e.preventDefault();
     await busy($('button', e.target), async () => {
@@ -61,7 +77,7 @@ export async function accountView(el) {
     const reg = await navigator.serviceWorker?.getRegistration();
     if (!reg) return ok('La aplicación ya está actualizada');
     await reg.update().catch(() => {});
-    ok(reg.waiting ? 'Hay una versión nueva: pulse "Actualizar" en el aviso' : 'Ya tiene la última versión');
+    if (reg.waiting) { ok('Instalando la versión nueva…'); reg.waiting.postMessage('SKIP_WAITING'); } else ok('Ya tiene la última versión');
   });
   $('#out', el).addEventListener('click', () => bus.emit('logout'));
 }

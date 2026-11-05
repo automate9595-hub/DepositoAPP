@@ -6,10 +6,17 @@ import { createHash } from 'node:crypto';
 import { parseEnvFile, validateUrl, validateKey } from './lib.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const src = join(root, 'src'); const out = join(root, 'docs'); const MARK = '.deposito-build';
+const outArg = process.argv.find((a) => a.startsWith('--out='));
+const src = join(root, 'src'); const out = outArg ? resolve(root, outArg.slice(6)) : join(root, 'docs'); const MARK = '.deposito-build';
 const die = (m) => { console.error('✖ ' + m); process.exit(1); };
 
-const env = { ...parseEnvFile(join(root, '.env')), ...Object.fromEntries(Object.entries(process.env).filter(([k]) => /^(SUPABASE_URL|SUPABASE_ANON_KEY|CURRENCY|LOCALE)$/.test(k))) };
+// --ci: en GitHub Actions toma la configuración PÚBLICA ya guardada en docs/config.js (si no hay variables ni .env)
+const ciCfg = {};
+if (process.argv.includes('--ci') && existsSync(join(root, 'docs', 'config.js'))) {
+  const c = readFileSync(join(root, 'docs', 'config.js'), 'utf8');
+  for (const k of ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'CURRENCY', 'LOCALE']) { const m = c.match(new RegExp(k + '\\s*:\\s*["\']([^"\']+)["\']')); if (m) ciCfg[k] = m[1]; }
+}
+const env = { ...ciCfg, ...parseEnvFile(join(root, '.env')), ...Object.fromEntries(Object.entries(process.env).filter(([k]) => /^(SUPABASE_URL|SUPABASE_ANON_KEY|CURRENCY|LOCALE)$/.test(k))) };
 let url; let key;
 if (process.argv.includes('--sin-config')) { url = 'https://TU-PROYECTO.supabase.co'; key = 'TU-CLAVE-PUBLICA-ANON'; }
 else { try { url = validateUrl(env.SUPABASE_URL); key = validateKey(env.SUPABASE_ANON_KEY); } catch (e) { die(e.message + '\n  Configure el archivo .env (copie .env.example) o ejecute publicar.bat.'); } }

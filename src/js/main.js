@@ -1,7 +1,9 @@
 import { supabase, configured, config } from './supa.js';
 import { state, bus, initCart, cacheProfile, cachedProfile, clearProfileCache, role, can } from './state.js';
 import { setLocale, esc } from './format.js';
-import { icon, $, $$, toast, errorBox, spinner } from './ui.js';
+import { icon, $, $$, toast, toastAction, errorBox, spinner, themeButton, soundButton, initEffects } from './ui.js';
+import { initTheme } from './theme.js';
+import { soundEnabled, soundChoiceMade, setSound, playSound, kindFor } from './sound.js';
 import { friendly, read } from './api.js';
 import { renderLogin, renderPending, renderSetupError, renderOffline } from './views/auth.js';
 import { accountView, noticesView } from './views/account.js';
@@ -13,6 +15,7 @@ import { warehouseOrdersView } from './views/warehouse.js';
 import { cartLines } from './cart.js';
 
 const app = document.getElementById('app');
+initTheme(); initEffects();
 let current = null; let navSeq = 0; let channel = null; let wasDown = false; let started = null; let hiddenAt = 0;
 const pendingKinds = new Set();
 
@@ -30,6 +33,7 @@ const NAV = {
   ],
   admin: [
     { path: 'pedidos', label: 'Pedidos', icon: 'list', render: adminOrdersView, perm: 'orders' },
+    { path: 'preparacion', label: 'Preparación', icon: 'clip', render: warehouseOrdersView, perm: 'orders' },
     { path: 'productos', label: 'Productos', icon: 'box', render: productsView, perm: 'products' },
     { path: 'inventario', label: 'Inventario', icon: 'layers', render: inventoryView, perm: 'inventory' },
     { path: 'usuarios', label: 'Usuarios', icon: 'users', render: usersView, perm: 'users' },
@@ -61,10 +65,12 @@ function renderShell() {
   app.innerHTML = `
     <header class="topbar"><h1 id="title"></h1>
       <span class="conn" id="conn"><i></i><b>En línea</b></span>
+      ${themeButton()}${soundButton()}
       <button class="iconbtn" id="bell" aria-label="Avisos">${icon('bell')}<span class="badge-dot hidden" id="bellN"></span></button>
     </header><div id="banner"></div>
     <main id="view" tabindex="-1"></main><nav class="bottomnav" id="nav" aria-label="Principal"></nav>`;
   $('#bell').addEventListener('click', () => { location.hash = '#/avisos'; });
+  syncSoundBtn();
   renderNav();
   setConn(navigator.onLine ? (wasDown ? 'warn' : 'online') : 'off');
   updateBell();
@@ -72,15 +78,36 @@ function renderShell() {
 function renderNav() {
   const nav = $('#nav'); if (!nav) return;
   const cur = location.hash.replace(/^#\/?/, '').split('/')[0];
-  nav.innerHTML = navFor().map((n) => {
-    const b = n.badge?.();
-    return `<a href="#/${n.path}" class="${n.path === cur ? 'active' : ''}" ${n.path === cur ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${esc(n.label)}</span>${b ? `<i class="nav-count">${b}</i>` : ''}</a>`;
-  }).join('');
+  const items = navFor(); const sig = items.map((n) => n.path).join('|');
+  if (nav.dataset.sig !== sig) { // se reconstruye solo si cambian las opciones; así las transiciones CSS se ven
+    nav.dataset.sig = sig;
+    nav.innerHTML = items.map((n) => `<a href="#/${n.path}" data-p="${n.path}">${icon(n.icon)}<span>${esc(n.label)}</span></a>`).join('');
+  }
+  items.forEach((n) => {
+    const a = nav.querySelector(`[data-p="${n.path}"]`); if (!a) return;
+    const on = n.path === cur; a.classList.toggle('active', on);
+    on ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
+    const b = n.badge?.(); let c = a.querySelector('.nav-count');
+    if (b) { if (!c) { c = document.createElement('i'); c.className = 'nav-count'; a.append(c); } if (c.textContent !== String(b)) { c.textContent = b; c.style.animation = 'none'; void c.offsetWidth; c.style.animation = ''; } }
+    else c?.remove();
+  });
 }
+function syncSoundBtn() { $('#snd')?.classList.toggle('muted-on', !soundEnabled()); }
+document.addEventListener('soundchange', syncSoundBtn);
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-sound-toggle]')) return;
+  const on = !soundEnabled(); setSound(on);
+  toast(on ? 'Sonido de avisos activado' : 'Sonido de avisos silenciado', on ? 'ok' : '');
+});
+let lastUnread = 0;
 function updateBell() {
   const n = $('#bellN'); if (!n) return;
   n.textContent = state.unread > 99 ? '99+' : String(state.unread);
   n.classList.toggle('hidden', state.unread <= 0);
+  const b = $('#bell');
+  if (state.unread > lastUnread && b) { b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring'); }
+  lastUnread = state.unread;
+  document.title = (state.unread > 0 ? `(${state.unread}) ` : '') + 'Depósito';
 }
 async function refreshUnread() {
   try {
@@ -102,12 +129,14 @@ async function route() {
   const def = [...navFor(), ...EXTRA].find((n) => n.path === path);
   if (!def) { location.replace('#/' + navFor()[0].path); return; }
   current?.dispose?.(); current = null;
-  $('#title').textContent = def.label;
+  const titleEl = $('#title'); titleEl.textContent = def.label;
+  titleEl.classList.remove('swap'); void titleEl.offsetWidth; titleEl.classList.add('swap');
   renderNav();
   const v = $('#view');
+  v.classList.remove('view-in');
   v.innerHTML = spinner();
   const ctx = {
-    profile: state.profile, args, can, navigate: (h) => { location.hash = h; },
+    profile: state.profile, path, args, can, navigate: (h) => { location.hash = h; },
     setTitle: (t) => { $('#title').textContent = t; },
     seq: () => seq === navSeq,
   };
@@ -116,6 +145,8 @@ async function route() {
     if (seq !== navSeq) { inst?.dispose?.(); return; }
     current = inst || null;
     window.scrollTo(0, 0);
+    v.classList.remove('view-in'); void v.offsetWidth; v.classList.add('view-in');
+    clearTimeout(route.t); route.t = setTimeout(() => v.classList.remove('view-in'), 950);
   } catch (e) {
     if (seq !== navSeq) return;
     v.innerHTML = errorBox(friendly(e));
@@ -138,6 +169,7 @@ function systemNotify(n) {
 }
 function onNotification(n) {
   state.unread += 1; updateBell();
+  playSound(kindFor(n.title));
   toast(`${n.title}${n.body ? ' · ' + n.body : ''}`);
   systemNotify(n);
   bus.emit('notification', n);
@@ -192,8 +224,13 @@ async function startSession(session) {
   renderShell();
   startRealtime(prof.id);
   refreshUnread();
+  offerSound();
   if (!location.hash || location.hash === '#') location.replace('#/' + navFor()[0].path);
   route();
+}
+function offerSound() {
+  if (soundChoiceMade() || role() === 'proveedor') return;
+  setTimeout(() => toastAction('¿Quiere escuchar un sonido cuando lleguen pedidos?', 'Activar', () => setSound(true)), 1500);
 }
 async function logout() {
   stopRealtime(); started = null; current?.dispose?.(); current = null;
@@ -203,26 +240,33 @@ async function logout() {
   renderLogin(app);
 }
 
-// ---------- Service worker y actualizaciones ----------
+// ---------- Service worker y actualización automática ----------
+// Cada vez que se publica una versión nueva en GitHub, la app la detecta sola (al abrir, al volver a primer plano,
+// al recuperar Internet y cada 5 minutos) y se actualiza sin que el usuario haga nada.
+const safeToReload = () => document.hidden || (!document.querySelector('.overlay') && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName));
 function setupSW() {
   if (!('serviceWorker' in navigator)) return;
   let reloading = false;
   navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.goto && state.profile) location.hash = e.data.goto; });
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloading) return; reloading = true; location.reload(); });
-  navigator.serviceWorker.register('./sw.js').then((reg) => {
-    const offer = () => {
-      if ($('#upd')) return;
-      const d = document.createElement('div'); d.id = 'upd'; d.className = 'toasts';
-      d.innerHTML = `<div class="toast row between" style="pointer-events:auto"><span>Hay una versión nueva.</span><button class="btn accent sm">Actualizar</button></div>`;
-      d.querySelector('button').addEventListener('click', () => reg.waiting?.postMessage('SKIP_WAITING'));
-      document.body.append(d);
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => {
+    let announced = false;
+    const apply = () => {
+      if (!reg.waiting) return;
+      if (!safeToReload()) { setTimeout(apply, 4000); return; } // no interrumpe formularios ni ventanas abiertas
+      if (!announced && !document.hidden) { announced = true; toast('Actualizando a la última versión…', 'ok', 1500); }
+      setTimeout(() => reg.waiting?.postMessage('SKIP_WAITING'), announced && !document.hidden ? 900 : 0);
     };
-    if (reg.waiting && navigator.serviceWorker.controller) offer();
+    if (reg.waiting && navigator.serviceWorker.controller) apply();
     reg.addEventListener('updatefound', () => {
       const nw = reg.installing;
-      nw?.addEventListener('statechange', () => { if (nw.state === 'installed' && navigator.serviceWorker.controller) offer(); });
+      nw?.addEventListener('statechange', () => { if (nw.state === 'installed' && navigator.serviceWorker.controller) apply(); });
     });
-    setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
+    const check = () => reg.update().catch(() => {});
+    setInterval(check, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    window.addEventListener('online', check);
+    check();
   }).catch(() => {});
 }
 

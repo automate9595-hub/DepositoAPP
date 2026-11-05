@@ -1,21 +1,23 @@
 /* Service worker: shell de la app en caché; los datos de Supabase NUNCA se cachean. */
-const VERSION = 'e36e472a4c';
+const VERSION = 'ad97b2c7b6';
 const SHELL = 'shell-' + VERSION;
 const RUNTIME = 'runtime-v1';
 const ASSETS = [
  "./",
  "./index.html",
  "./manifest.webmanifest",
- "./css/app.css?v=e36e472a4c",
+ "./css/app.css?v=ad97b2c7b6",
  "./icons/icon-192.png",
  "./icons/icon-512.png",
  "./icons/icon-maskable-512.png",
  "./js/api.js",
  "./js/cart.js",
  "./js/format.js",
- "./js/main.js?v=e36e472a4c",
+ "./js/main.js?v=ad97b2c7b6",
+ "./js/sound.js",
  "./js/state.js",
  "./js/supa.js",
+ "./js/theme.js",
  "./js/ui.js",
  "./js/views/account.js",
  "./js/views/admin-catalog.js",
@@ -28,7 +30,8 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(ASSETS)));
+  // cache:'reload' evita copiar archivos viejos desde la caché HTTP del navegador al instalar una versión nueva
+  e.waitUntil(caches.open(SHELL).then((c) => Promise.all(ASSETS.map((u) => fetch(new Request(u, { cache: 'reload' })).then((r) => { if (!r.ok) throw new Error(u); return c.put(u, r); })))));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
@@ -45,11 +48,11 @@ self.addEventListener('fetch', (e) => {
   if (url.hostname.endsWith('.supabase.co') && !url.pathname.startsWith('/storage/v1/object/public/')) return;
   if (url.origin === location.origin) {
     if (url.pathname.endsWith('/config.js')) { // configuración: red primero, caché solo sin conexión
-      e.respondWith(fetch(req).then((r) => { if (r.ok) { const cp = r.clone(); caches.open(SHELL).then((c) => c.put(req, cp)); } return r; }).catch(() => caches.match(req)));
+      e.respondWith(fetch(req, { cache: 'no-cache' }).then((r) => { if (r.ok) { const cp = r.clone(); caches.open(SHELL).then((c) => c.put(req, cp)); } return r; }).catch(() => caches.match(req)));
       return;
     }
     if (req.mode === 'navigate') {
-      e.respondWith(fetch(req).catch(() => caches.match('./index.html', { ignoreSearch: true })));
+      e.respondWith(fetch(req, { cache: 'no-cache' }).catch(() => caches.match('./index.html', { ignoreSearch: true })));
       return;
     }
     e.respondWith(caches.match(req, { ignoreSearch: false }).then((hit) => hit || fetch(req).then((r) => {

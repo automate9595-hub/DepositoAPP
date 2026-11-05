@@ -1,6 +1,7 @@
 import { read, rpc, friendly } from '../api.js';
 import { esc, money, STATUS, toInt, statusLabel } from '../format.js';
 import { $, $$, busy, ok, fail, emptyBox, errorBox, spinner, confirmBox, askText, modal } from '../ui.js';
+import { state } from '../state.js';
 import { fetchOrder, orderCard, historyHtml, summaryHtml, totals } from './order-common.js';
 
 const PAGE = 20;
@@ -74,6 +75,7 @@ async function detail(el, ctx, id) {
       ${(pending || editable) ? `<label class="field"><span>Observaciones</span><textarea id="obs" maxlength="500">${esc(o.admin_notes || '')}</textarea></label>` : ''}
       <div class="stack">
         ${pending ? '<button class="btn accent block" id="ap">Aprobar y reservar stock</button><button class="btn danger block" id="rj">Rechazar</button>' : ''}
+        ${editable ? `<a class="btn accent block" href="#/preparacion/${id}">Preparar este pedido ahora</a>` : ''}
         ${editable ? '<button class="btn primary block" id="md">Guardar cantidades modificadas</button><button class="btn block" id="as">Asignar / reasignar preparador</button>' : ''}
         ${o.status === 'LISTO_PARA_ENTREGAR' ? '<button class="btn accent block" id="dl">Confirmar entrega</button>' : ''}
         ${!final && !pending ? '<button class="btn danger block" id="cx">Cancelar pedido</button>' : ''}
@@ -95,8 +97,9 @@ async function detail(el, ctx, id) {
     run('#dl', async () => { if (!(await confirmBox('Confirmar entrega', 'Se descontará del stock físico lo preparado y se liberará el resto de la reserva.', { okText: 'Confirmar entrega' }))) return; await rpc('confirm_delivery', { p_order_id: id }); ok('Entrega confirmada'); await load(); });
     run('#cx', async () => { const r = await askText('Cancelar pedido', 'Motivo (opcional)', { required: false, okText: 'Cancelar pedido' }); if (r === null) return; await rpc('cancel_order', { p_order_id: id, p_reason: r || null }); ok('Pedido cancelado y reservas liberadas'); await load(); });
     run('#as', async () => {
+      const canPrep = true;
       const ws = (await read((s) => s.from('warehouse_workers').select('profile_id,display_name').eq('active', true).order('display_name'))).data || [];
-      const sel = await modal(`<h2>Preparador</h2><label class="field"><span>Asignar a</span><select id="w"><option value="">Sin asignar</option>${ws.map((w) => `<option value="${w.profile_id}" ${w.profile_id === o.assigned_to ? 'selected' : ''}>${esc(w.display_name)}</option>`).join('')}</select></label>
+      const sel = await modal(`<h2>Preparador</h2><label class="field"><span>Asignar a</span><select id="w"><option value="">Sin asignar</option>${canPrep ? `<option value="${state.profile.id}" ${state.profile.id === o.assigned_to ? 'selected' : ''}>Yo (administración)</option>` : ''}${ws.map((w) => `<option value="${w.profile_id}" ${w.profile_id === o.assigned_to ? 'selected' : ''}>${esc(w.display_name)}</option>`).join('')}</select></label>
         <div class="row" style="margin-top:16px"><button class="btn grow" data-close>Volver</button><button class="btn primary grow" id="okb">Guardar</button></div>`,
       { onMount: (ov, close) => $('#okb', ov).addEventListener('click', () => close({ v: $('#w', ov).value })) });
       if (!sel) return;

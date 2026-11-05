@@ -1,0 +1,14 @@
+{
+  "name": "deposito-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Gestión de depósito, stock y pedidos (PWA + Supabase + GitHub Pages)",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test": "node scripts/test.mjs",
+    "build": "node scripts/build.mjs",
+    "verify": "node scripts/check.mjs && node scripts/test.mjs && node scripts/build.mjs"
+  }
+}

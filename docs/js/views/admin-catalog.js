@@ -1,0 +1,192 @@
+import { supabase } from '../supa.js';
+import { read, rpc, write, friendly } from '../api.js';
+import { esc, money, cleanSearch, debounce, one, toInt, dateTime } from '../format.js';
+import { $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal, img, icon, compressImage } from '../ui.js';
+import { can } from '../state.js';
+
+const PAGE = 25;
+
+// ---------------- Productos ----------------
+export async function productsView(el) {
+  let page = 0; let q = ''; let rows = []; let gen = 0; let cats = [];
+  async function loadCats() { cats = (await read((s) => s.from('categories').select('id,name,active').order('name')).catch(() => ({ data: [] }))).data || []; }
+  await loadCats();
+  el.innerHTML = `<div class="stack"><div class="row"><input id="q" type="search" class="grow" placeholder="Buscar producto o código" aria-label="Buscar">
+    <button class="btn primary" id="new">${icon('plus')} Nuevo</button></div>
+    <button class="btn sm block" id="cats">Administrar categorías</button>
+    <div id="l" class="list"></div><button class="btn block hidden" id="more">Ver más</button></div>`;
+  const list = $('#l', el); const more = $('#more', el);
+  async function load(reset) {
+    const my = ++gen; if (reset) { page = 0; rows = []; list.innerHTML = spinner(); }
+    try {
+      const { data } = await read((s) => {
+        let b = s.from('products').select('id,code,name,description,price,photo_url,active,category_id,inventory(physical_stock,reserved_stock,available_stock)').order('name').range(page * PAGE, page * PAGE + PAGE - 1);
+        const t = cleanSearch(q); if (t) b = b.or(`name.ilike.%${t}%,code.ilike.%${t}%`); return b;
+      });
+      if (my !== gen) return;
+      rows = rows.concat(data || []); more.classList.toggle('hidden', (data || []).length < PAGE);
+      list.innerHTML = rows.length ? rows.map((p) => `<div class="card click row" data-id="${p.id}">
+        <div class="thumb" style="display:grid;place-items:center;overflow:hidden">${img(p.photo_url, p.name) || icon('image')}</div>
+        <div class="grow"><div class="pname">${esc(p.name)}</div><div class="muted small ellipsis">${esc(p.code)} · ${money(p.price)}</div>
+        <div class="small">Disponible: <b>${one(p.inventory)?.available_stock ?? 0}</b></div></div>
+        ${p.active ? '' : '<span class="status s-idle">Inactivo</span>'}</div>`).join('') : emptyBox('No hay productos. Cree el primero con "Nuevo".');
+    } catch (e) { if (my === gen) { list.innerHTML = errorBox(friendly(e)); $('[data-retry]', list)?.addEventListener('click', () => load(true)); } }
+  }
+  $('#q', el).addEventListener('input', debounce((e) => { q = e.target.value; load(true); }, 400));
+  $('#new', el).addEventListener('click', async () => { if (await productForm(null, cats)) load(true); });
+  $('#cats', el).addEventListener('click', async () => { await categoriesForm(cats); await loadCats(); });
+  list.addEventListener('click', async (e) => { const c = e.target.closest('[data-id]'); if (c && await productForm(rows.find((r) => r.id === c.dataset.id), cats)) load(true); });
+  more.addEventListener('click', () => { page += 1; load(false); });
+  await load(true);
+  return { dispose: () => { gen++; } };
+}
+
+function productForm(p, cats) {
+  const isNew = !p;
+  return modal(`<h2>${isNew ? 'Nuevo producto' : 'Editar producto'}</h2>
+    <form id="f" class="stack" novalidate>
+      <label class="field"><span>Código</span><input name="code" value="${esc(p?.code || '')}" maxlength="40" required></label>
+      <label class="field"><span>Nombre</span><input name="name" value="${esc(p?.name || '')}" maxlength="120" required></label>
+      <label class="field"><span>Descripción</span><textarea name="description" maxlength="500">${esc(p?.description || '')}</textarea></label>
+      <label class="field"><span>Categoría</span><select name="category_id"><option value="">Sin categoría</option>
+        ${cats.filter((c) => c.active || c.id === p?.category_id).map((c) => `<option value="${c.id}" ${c.id === p?.category_id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+      <label class="field"><span>Precio</span><input name="price" inputmode="decimal" value="${p ? p.price : ''}" required></label>
+      ${isNew ? '<label class="field"><span>Stock inicial (opcional)</span><input name="stock" inputmode="numeric" value="0"></label>' : ''}
+      <div class="field"><span>Fotografía</span><div class="row"><div class="thumb" id="pv" style="display:grid;place-items:center;overflow:hidden">${img(p?.photo_url, '') || icon('image')}</div>
+        <input name="photo" type="file" accept="image/*" class="grow"></div></div>
+      <label class="check"><input type="checkbox" name="active" ${p?.active === false ? '' : 'checked'}> Producto activo (visible para proveedores)</label>
+      <p class="notice bad hidden" id="err" role="alert"></p>
+      <div class="row"><button type="button" class="btn grow" data-close>Cancelar</button><button class="btn primary grow">Guardar</button></div>
+    </form>`, {
+    onMount: (ov, close) => {
+      const f = $('#f', ov); const err = $('#err', ov);
+      f.photo.addEventListener('change', () => { const file = f.photo.files[0]; if (file) { $('#pv', ov).innerHTML = `<img class="ok" alt="" src="${URL.createObjectURL(file)}" style="width:100%;height:100%;object-fit:cover">`; } });
+      f.addEventListener('submit', async (e) => {
+        e.preventDefault(); err.classList.add('hidden');
+        const price = Number(String(f.price.value).replace(',', '.'));
+        if (!f.code.value.trim() || !f.name.value.trim()) return show('Código y nombre son obligatorios.');
+        if (!Number.isFinite(price) || price < 0) return show('Ingrese un precio válido (0 o mayor).');
+        const stock = isNew ? toInt(f.stock.value) : 0;
+        if (stock < 0) return show('El stock inicial no puede ser negativo.');
+        await busy($('button:not([type=button])', f), async () => {
+          try {
+            let photo_url = p?.photo_url ?? null;
+            const file = f.photo.files[0];
+            if (file) {
+              const blob = await compressImage(file);
+              const path = `${crypto.randomUUID()}.jpg`;
+              const up = await supabase.storage.from('product-photos').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' });
+              if (up.error) throw up.error;
+              photo_url = supabase.storage.from('product-photos').getPublicUrl(path).data.publicUrl;
+            }
+            const row = { code: f.code.value.trim(), name: f.name.value.trim(), description: f.description.value.trim(), category_id: f.category_id.value || null, price, photo_url, active: f.active.checked };
+            if (isNew) {
+              const { data } = await write((s) => s.from('products').insert(row).select('id').single());
+              if (stock > 0) await rpc('adjust_stock', { p_product_id: data.id, p_delta: stock, p_type: 'INGRESO', p_note: 'Stock inicial' });
+            } else {
+              await write((s) => s.from('products').update(row).eq('id', p.id));
+            }
+            ok('Producto guardado'); close(true);
+          } catch (x) { show(friendly(x)); }
+        });
+      });
+      function show(m) { err.textContent = m; err.classList.remove('hidden'); }
+    },
+  }).then((v) => v === true);
+}
+
+function categoriesForm(cats) {
+  return modal(`<h2>Categorías</h2><div id="cl" class="list"></div>
+    <form id="cf" class="row" style="margin-top:12px"><input name="n" class="grow" placeholder="Nueva categoría" maxlength="60" aria-label="Nueva categoría"><button class="btn primary">${icon('plus')}</button></form>
+    <button class="btn block" data-close style="margin-top:12px">Cerrar</button>`, {
+    onMount: (ov) => {
+      const draw = () => { $('#cl', ov).innerHTML = cats.length ? cats.map((c) => `<div class="row between card" data-id="${c.id}"><span>${esc(c.name)}</span>
+        <label class="check"><input type="checkbox" ${c.active ? 'checked' : ''}> activa</label></div>`).join('') : '<p class="muted">No hay categorías.</p>'; };
+      draw();
+      $('#cf', ov).addEventListener('submit', async (e) => {
+        e.preventDefault(); const n = e.target.n.value.trim(); if (!n) return;
+        await busy($('button', e.target), async () => {
+          try { const { data } = await write((s) => s.from('categories').insert({ name: n }).select('id,name,active').single()); cats.push(data); cats.sort((a, b) => a.name.localeCompare(b.name)); e.target.reset(); draw(); }
+          catch (x) { fail(friendly(x)); }
+        });
+      });
+      $('#cl', ov).addEventListener('change', async (e) => {
+        const id = e.target.closest('[data-id]').dataset.id; const c = cats.find((x) => x.id === id);
+        try { await write((s) => s.from('categories').update({ active: e.target.checked }).eq('id', id)); c.active = e.target.checked; }
+        catch (x) { fail(friendly(x)); e.target.checked = c.active; }
+      });
+    },
+  });
+}
+
+// ---------------- Inventario ----------------
+export async function inventoryView(el) {
+  let page = 0; let q = ''; let rows = []; let gen = 0; let tab = 'stock';
+  el.innerHTML = `<div class="stack"><div class="chips"><button class="chip on" data-t="stock">Stock</button><button class="chip" data-t="mov">Movimientos</button></div>
+    <input id="q" type="search" placeholder="Buscar producto o código" aria-label="Buscar"><div id="l" class="list"></div><button class="btn block hidden" id="more">Ver más</button></div>`;
+  const list = $('#l', el); const more = $('#more', el);
+  async function load(reset) {
+    const my = ++gen; if (reset) { page = 0; rows = []; list.innerHTML = spinner(); }
+    try {
+      const t = cleanSearch(q);
+      const { data } = await read((s) => {
+        if (tab === 'stock') {
+          let b = s.from('inventory').select('product_id,physical_stock,reserved_stock,available_stock,products!inner(code,name,active)').order('products(name)').range(page * PAGE, page * PAGE + PAGE - 1);
+          if (t) b = b.or(`name.ilike.%${t}%,code.ilike.%${t}%`, { referencedTable: 'products' });
+          return b;
+        }
+        let b = s.from('stock_movements').select('id,movement_type,quantity,physical_after,reserved_after,note,created_at,order_id,products!inner(code,name),profiles(full_name)').order('created_at', { ascending: false }).range(page * PAGE, page * PAGE + PAGE - 1);
+        if (t) b = b.or(`name.ilike.%${t}%,code.ilike.%${t}%`, { referencedTable: 'products' });
+        return b;
+      });
+      if (my !== gen) return;
+      rows = rows.concat(data || []); more.classList.toggle('hidden', (data || []).length < PAGE);
+      list.innerHTML = rows.length ? rows.map(tab === 'stock' ? stockCard : movCard).join('') : emptyBox('Sin resultados.');
+    } catch (e) { if (my === gen) { list.innerHTML = errorBox(friendly(e)); $('[data-retry]', list)?.addEventListener('click', () => load(true)); } }
+  }
+  const stockCard = (r) => { const p = one(r.products); return `<div class="card click" data-id="${r.product_id}"><div class="row between"><b class="ellipsis">${esc(p.name)}</b>${p.active ? '' : '<span class="status s-idle">Inactivo</span>'}</div>
+    <div class="muted small">${esc(p.code)}</div><div class="row between mono small" style="margin-top:6px"><span>Físico <b>${r.physical_stock}</b></span><span>Reservado <b>${r.reserved_stock}</b></span>
+    <span>Disponible <b style="color:${r.available_stock > 0 ? 'var(--ok)' : 'var(--bad)'}">${r.available_stock}</b></span></div></div>`; };
+  const TYPE = { INGRESO: 'Ingreso', AJUSTE: 'Ajuste', RESERVA: 'Reserva', LIBERACION: 'Liberación', ENTREGA: 'Entrega' };
+  const movCard = (m) => { const p = one(m.products); return `<div class="card"><div class="row between"><b class="ellipsis">${esc(p.name)}</b><span class="status s-info">${TYPE[m.movement_type]}</span></div>
+    <div class="row between small"><span class="mono"><b>${m.quantity > 0 ? '+' : ''}${m.quantity}</b> u. · físico ${m.physical_after} · reserv. ${m.reserved_after}</span></div>
+    <div class="muted small">${dateTime(m.created_at)} · ${esc(one(m.profiles)?.full_name || 'Sistema')}${m.note ? ' · ' + esc(m.note) : ''}</div></div>`; };
+
+  el.addEventListener('click', async (e) => {
+    const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; $$('[data-t]', el).forEach((c) => c.classList.toggle('on', c === t)); load(true); return; }
+    if (e.target === more) { page += 1; load(false); return; }
+    const c = e.target.closest('[data-id]'); if (!c || tab !== 'stock') return;
+    const r = rows.find((x) => x.product_id === c.dataset.id);
+    if (r && can('inventory') && await stockForm(r)) load(true);
+  });
+  $('#q', el).addEventListener('input', debounce((e) => { q = e.target.value; load(true); }, 400));
+  await load(true);
+  return { refresh: (k) => { if (k.includes('inventory') || k.includes('resync')) load(true); }, dispose: () => { gen++; } };
+}
+
+function stockForm(r) {
+  const p = one(r.products);
+  return modal(`<h2>${esc(p.name)}</h2><p class="muted small">Físico ${r.physical_stock} · Reservado ${r.reserved_stock} · Disponible ${r.available_stock}</p>
+    <form id="f" class="stack" novalidate>
+      <label class="field"><span>Operación</span><select name="type"><option value="INGRESO">Ingreso de mercadería (+)</option><option value="AJUSTE">Ajuste por recuento (+ o −)</option></select></label>
+      <label class="field"><span>Cantidad</span><input name="qty" inputmode="numeric" placeholder="Ej.: 20 (en ajustes puede ser −3)" required></label>
+      <label class="field"><span>Motivo / nota</span><input name="note" maxlength="200"></label>
+      <p class="notice bad hidden" id="err" role="alert"></p>
+      <div class="row"><button type="button" class="btn grow" data-close>Cancelar</button><button class="btn primary grow">Registrar</button></div></form>`, {
+    onMount: (ov, close) => {
+      const f = $('#f', ov); const err = $('#err', ov);
+      f.addEventListener('submit', async (e) => {
+        e.preventDefault(); err.classList.add('hidden');
+        const n = parseInt(f.qty.value, 10);
+        const bad = (m) => { err.textContent = m; err.classList.remove('hidden'); };
+        if (!Number.isInteger(n) || n === 0) return bad('Ingrese una cantidad entera distinta de 0.');
+        if (f.type.value === 'INGRESO' && n < 0) return bad('Un ingreso debe ser positivo. Use "Ajuste" para restar.');
+        if (f.type.value === 'AJUSTE' && !f.note.value.trim()) return bad('Indique el motivo del ajuste.');
+        await busy($('button:not([type=button])', f), async () => {
+          try { await rpc('adjust_stock', { p_product_id: r.product_id, p_delta: n, p_type: f.type.value, p_note: f.note.value.trim() || null }); ok('Stock actualizado'); close(true); }
+          catch (x) { bad(friendly(x)); }
+        });
+      });
+    },
+  }).then((v) => v === true);
+}

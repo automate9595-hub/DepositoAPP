@@ -1,0 +1,46 @@
+DEPOSITOAPP - PAQUETE PREPARADO PARA PUBLICAR
+================================================
+
+ESTE ZIP YA ESTA CONFIGURADO CON TU PROYECTO SUPABASE.
+La carpeta docs ya esta compilada y contiene la URL y la clave PUBLICA.
+No necesitas ejecutar Node.js para publicar esta version.
+
+IMPORTANTE SOBRE NODE.JS 8.8.1
+- Node.js 8.8.1 es demasiado antiguo para recompilar el codigo fuente.
+- Para PUBLICAR esta carpeta docs no se necesita Node.js ni VPS.
+- No ejecutes npm install ni scripts de compilacion en Node 8.8.1.
+- La app se ejecuta en el navegador del telefono o computadora.
+
+PASO 1 - SUBIR A GITHUB
+1. Entra en https://github.com/automate9595-hub/DepositoAPP
+2. Si el repositorio no existe, crealo con el nombre DepositoAPP.
+3. Pulsa Add file > Upload files.
+4. Descomprime este ZIP en tu computadora.
+5. Entra en la carpeta DepositoAPP y selecciona TODO su contenido
+   (incluidas src, supabase, scripts y docs). Arrastralo a GitHub.
+6. Abajo pulsa Commit changes y espera que termine.
+
+PASO 2 - ACTIVAR GITHUB PAGES
+1. En el repositorio abre Settings > Pages.
+2. En Build and deployment selecciona:
+   Source: Deploy from a branch
+   Branch: main
+   Folder: /docs
+3. Pulsa Save.
+4. Espera unos minutos. La direccion publicada es:
+   https://automate9595-hub.github.io/DepositoAPP/
+
+PASO 3 - ABRIR EN EL TELEFONO
+1. Abre la direccion anterior en Google Chrome.
+2. Inicia sesion con el correo y contrasena del administrador que creaste.
+3. En Chrome puedes elegir menu > Instalar aplicacion.
+
+SEGURIDAD
+- La aplicacion contiene solamente la clave PUBLICA sb_publishable.
+- Nunca pegues una clave sb_secret o service_role en archivos del sitio.
+- Como la clave secreta se compartio anteriormente, regenerala en Supabase.
+- No publiques archivos .env ni claves secretas.
+
+SI APARECE UN ERROR
+No vuelvas a ejecutar el SQL de instalacion. Copia el texto exacto del error
+y solicita ayuda para revisarlo.

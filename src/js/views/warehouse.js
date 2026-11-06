@@ -15,7 +15,7 @@ export async function warehouseOrdersView(el, ctx) {
   async function load() {
     const my = ++gen; const sts = TABS.find((t) => t[0] === tab)[2];
     try {
-      const { data } = await read((s) => s.from('orders').select('id,order_number,status,total_approved,total_requested,created_at,assigned_to,suppliers(company_name)').in('status', sts).order('created_at', { ascending: true }).limit(100));
+      const { data } = await read((s) => s.from('orders').select('id,order_number,status,total_approved,total_requested,customer_name,created_at,assigned_to,suppliers(company_name)').in('status', sts).order('created_at', { ascending: true }).limit(100));
       if (my !== gen) return;
       list.innerHTML = (data || []).length ? data.map((o) => orderCard(o, o.assigned_to === state.profile.id ? '<div class="small" style="color:var(--ok)">Asignado a usted</div>' : o.assigned_to ? '<div class="small muted">Asignado a otra persona</div>' : '')).join('') : emptyBox('No hay pedidos en esta lista.');
     } catch (e) { if (my === gen) { list.innerHTML = errorBox(friendly(e)); $('[data-retry]', list)?.addEventListener('click', load); } }

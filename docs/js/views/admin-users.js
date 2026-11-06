@@ -115,28 +115,6 @@ function editUserForm(r, company) {
   }).then((v) => v === true);
 }
 
-// ---------------- Estadísticas ----------------
-export async function statsView(el) {
-  let days = 30;
-  el.innerHTML = `<div class="stack"><div class="chips">${[7, 30, 90, 365].map((d) => `<button class="chip ${d === days ? 'on' : ''}" data-d="${d}">${d === 365 ? '1 año' : d + ' días'}</button>`).join('')}</div><div id="b" class="stack"></div></div>`;
-  const box = $('#b', el);
-  async function load() {
-    box.innerHTML = spinner();
-    try {
-      const s = await rpc('admin_stats', { p_days: days }, { retries: 1 });
-      const bars = (arr, key, fmt) => { const max = Math.max(1, ...arr.map((x) => Number(x[key]))); return arr.length ? arr.map((x) => `<div><div class="row between small"><span class="ellipsis">${esc(x.name)}</span><b class="mono">${fmt(x[key])}</b></div><div class="bar" style="width:${Math.max(2, (Number(x[key]) / max) * 100)}%"></div></div>`).join('') : '<p class="muted small">Sin datos.</p>'; };
-      box.innerHTML = `<div class="card"><div class="kv"><span class="muted">Pedidos recibidos</span><b>${s.orders_total}</b><span class="muted">Monto entregado</span><b class="mono">${money(s.delivered_amount)}</b></div></div>
-        <div class="card stack"><h3>Pedidos por estado</h3>${Object.entries(s.by_status).map(([k, v]) => `<div class="row between"><span>${esc(statusLabel(k))}</span><b>${v}</b></div>`).join('') || '<p class="muted small">Sin pedidos.</p>'}</div>
-        <div class="card stack"><h3>Productos más entregados</h3>${bars(s.top_products, 'units', (v) => v + ' u.')}</div>
-        <div class="card stack"><h3>Proveedores (monto entregado)</h3>${bars(s.by_supplier, 'amount', money)}</div>
-        <div class="card stack"><h3>Stock bajo (5 o menos)</h3>${s.low_stock.length ? s.low_stock.map((x) => `<div class="row between"><span class="ellipsis">${esc(x.name)}</span><b style="color:var(--bad)">${x.available}</b></div>`).join('') : '<p class="muted small">Todo en orden.</p>'}</div>`;
-    } catch (e) { box.innerHTML = errorBox(friendly(e)); $('[data-retry]', box)?.addEventListener('click', load); }
-  }
-  el.addEventListener('click', (e) => { const b = e.target.closest('[data-d]'); if (!b) return; days = Number(b.dataset.d); el.querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', c === b)); load(); });
-  await load();
-  return { refresh: (k) => { if (k.includes('resync')) load(); } };
-}
-
 // ---------------- Auditoría ----------------
 export async function auditView(el) {
   let page = 0; let rows = [];

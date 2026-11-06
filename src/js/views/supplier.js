@@ -1,6 +1,7 @@
 import { state, bus, persistCart, replaceCart } from '../state.js';
 import { read, rpc, friendly } from '../api.js';
 import { esc, money, cleanSearch, debounce, one, toInt } from '../format.js';
+import { customerForm } from './customers.js';
 import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner, photoBox, img, confirmBox } from '../ui.js';
 import { setQty, getQty, removeItem, itemList, cartTotal, cartCount, toPayload, resetCart, MAX_QTY } from '../cart.js';
 import { fetchOrder, orderCard, historyHtml, summaryHtml, totals } from './order-common.js';
@@ -75,7 +76,13 @@ export async function catalogView(el) {
 
 // ---------------- Carrito ----------------
 export async function cartView(el, ctx) {
-  let sending = false;
+  let sending = false; let customers = [];
+  const loadCustomers = async () => {
+    try { customers = (await read((s) => s.from('customers').select('id,name,is_public').eq('active', true))).data || []; } catch { customers = []; }
+    customers.sort((a, b) => Number(b.is_public) - Number(a.is_public) || a.name.localeCompare(b.name));
+    if (state.cart.customerId && !customers.some((c) => c.id === state.cart.customerId)) { state.cart.customerId = ''; persistCart(); }
+  };
+  await loadCustomers();
   function draw() {
     const items = itemList(state.cart);
     if (!items.length) { el.innerHTML = `<div class="empty stack"><p>Su carrito está vacío.</p><a class="btn primary" href="#/catalogo">Ver catálogo</a></div>`; return; }
@@ -85,6 +92,9 @@ export async function cartView(el, ctx) {
           <div class="stepper" style="margin-top:6px;max-width:170px"><button data-d="-1" aria-label="Quitar uno">−</button>
           <input inputmode="numeric" value="${i.qty}" data-q aria-label="Cantidad"><button data-d="1" aria-label="Agregar uno">+</button></div></div>
         <button class="iconbtn" data-rm aria-label="Eliminar" style="color:var(--bad)">${icon('x')}</button></div>`).join('')}</div>
+      <div class="card stack" id="cbox"><div class="row between"><b>Cliente del pedido</b><button class="btn sm" id="newc" type="button">${icon('plus')} Nuevo cliente</button></div>
+        <select id="cu" aria-label="Cliente del pedido"><option value="">Elegir cliente…</option>${customers.map((c) => `<option value="${c.id}" ${c.id === state.cart.customerId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+        <p class="muted small">Todo pedido se asigna a un cliente. Si es una venta de mostrador, elija "Cliente público general".</p></div>
       <label class="field"><span>Nota para el depósito (opcional)</span><textarea id="n" maxlength="500">${esc(state.cart.notes)}</textarea></label>
       <div class="card"><div class="row between"><span class="muted">${cartCount(state.cart)} unidades · ${items.length} productos</span></div>
         <div class="row between"><span>Total estimado</span><b class="total mono">${money(cartTotal(state.cart))}</b></div>
@@ -98,22 +108,25 @@ export async function cartView(el, ctx) {
     const d = e.target.closest('[data-d]');
     if (d && line) { const it = state.cart.items[line.dataset.id]; if (it) { setQty(state.cart, it, it.qty + toInt(d.dataset.d)); persistCart(); draw(); } return; }
     if (e.target.closest('[data-rm]') && line) { removeItem(state.cart, line.dataset.id); persistCart(); draw(); return; }
+    if (e.target.closest('#newc')) { const r = await customerForm(null); if (r) { await loadCustomers(); state.cart.customerId = r.id; persistCart(); draw(); ok('Cliente creado y seleccionado'); } return; }
     if (e.target.id === 'clr') { if (await confirmBox('Vaciar carrito', '¿Quitar todos los productos?', { danger: true, okText: 'Vaciar' })) { replaceCart(resetCart()); draw(); } return; }
     if (e.target.closest('#send')) await send(e.target.closest('#send'));
   });
   el.addEventListener('change', (e) => {
     if (e.target.matches('[data-q]')) { const it = state.cart.items[e.target.closest('.line').dataset.id]; if (it) { setQty(state.cart, it, toInt(e.target.value)); persistCart(); draw(); } }
     if (e.target.id === 'n') { state.cart.notes = e.target.value; persistCart(); }
+    if (e.target.id === 'cu') { state.cart.customerId = e.target.value; persistCart(); $('#cbox', el)?.classList.remove('flag'); }
   });
   async function send(btn) {
     if (sending) return;
     if (!navigator.onLine) return fail('Sin conexión: el pedido NO se envió. Intente cuando recupere Internet.');
     const notes = $('#n', el)?.value ?? ''; state.cart.notes = notes; persistCart();
+    if (!state.cart.customerId) { const cb = $('#cbox', el); cb?.classList.add('flag'); cb?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return fail('Elija un cliente para el pedido (o "Cliente público general").'); }
     sending = true;
     await busy(btn, async () => {
       try {
         // El mismo requestId se reutiliza en cada reintento: la base de datos garantiza un único pedido
-        const id = await rpc('submit_order', { p_client_request_id: state.cart.requestId, p_items: toPayload(state.cart), p_notes: notes || null }, { retries: 2 });
+        const id = await rpc('submit_order', { p_client_request_id: state.cart.requestId, p_items: toPayload(state.cart), p_notes: notes || null, p_customer_id: state.cart.customerId }, { retries: 2 });
         replaceCart(resetCart());
         ok('Pedido enviado y confirmado');
         ctx.navigate('#/pedidos/' + id);
@@ -135,7 +148,7 @@ export async function supplierOrdersView(el, ctx) {
   async function load(reset) {
     if (reset) { page = 0; rows = []; }
     try {
-      const { data } = await read((s) => s.from('orders').select('id,order_number,status,total_requested,total_approved,total_delivered,created_at').order('created_at', { ascending: false }).range(page * PAGE, page * PAGE + PAGE - 1));
+      const { data } = await read((s) => s.from('orders').select('id,order_number,status,total_requested,total_approved,total_delivered,customer_name,created_at,suppliers(company_name)').order('created_at', { ascending: false }).range(page * PAGE, page * PAGE + PAGE - 1));
       rows = rows.concat(data || []); more.classList.toggle('hidden', (data || []).length < PAGE);
       list.innerHTML = rows.length ? rows.map((o) => orderCard(o)).join('') : emptyBox('Todavía no envió pedidos.');
     } catch (e) { list.innerHTML = errorBox(friendly(e)); $('[data-retry]', list)?.addEventListener('click', () => load(true)); }

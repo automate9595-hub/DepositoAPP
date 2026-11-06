@@ -81,6 +81,21 @@ El workflow usa los archivos web ya preparados: no instala ni ejecuta Node.js en
 * **Tema claro y oscuro**: botón sol/luna en la barra superior (y en Cuenta: Automático / Claro / Oscuro). Se recuerda por dispositivo.
 * **Sonido de avisos**: botón de altavoz en la barra superior o en Cuenta. Suena al llegar un pedido o cambiar su estado (sonidos distintos para pedido nuevo, listo y faltante/cancelado). El navegador solo permite audio después de tocar la pantalla una vez.
 * **Administración prepara pedidos**: nueva pestaña **Preparación** (principal, o segundo administrador con permiso "Pedidos"). Mismo flujo que el depósito: comenzar, marcar *Preparado* o *Faltante*, finalizar (queda *Listo para entregar*) y confirmar entrega. En un pedido también puede asignárselo a sí mismo.
-  **Importante:** si su base de Supabase ya estaba instalada, ejecute UNA vez `supabase/05_admin_prepara.sql` en el SQL Editor. (Instalaciones nuevas: ya viene incluido en `instalar_todo.sql`.)
+  **Importante:** si su base de Supabase ya estaba instalada, ejecute `supabase/06_clientes_costos.sql` (incluye lo de `05_admin_prepara.sql`). Instalaciones nuevas: ya viene incluido en `instalar_todo.sql`.
 * **Actualización automática**: al subir cambios a `main`, GitHub Actions compila `src/` con un número de versión nuevo y publica. Las apps instaladas lo detectan (al abrir, al volver a primer plano, al recuperar Internet y cada 5 minutos) y se actualizan solas, sin interrumpir formularios ni ventanas abiertas. Para cambiar la app basta con subir los archivos modificados de `src/`.
 * **Visual**: transiciones entre pantallas, listas con entrada escalonada, esqueletos de carga, efecto onda en botones, menú lateral en pantallas grandes, hojas y avisos animados. Se respeta "reducir movimiento" del sistema.
+
+
+## Novedades de la versión 3 (clientes, costos, estadísticas)
+
+**Antes de subir la app, ejecute `supabase/06_clientes_costos.sql` en Supabase (SQL Editor → Run).** Se puede repetir sin problema. Si algún día vuelve a ejecutar `03_seguridad.sql`, ejecute `06` otra vez después.
+
+* **Clientes**: pestaña *Clientes* (administración con permiso "Clientes y cuentas", y proveedores). Todo pedido se asigna a un cliente o al **Cliente público general** (contado, sin cuenta corriente). Un cliente creado por la administración puede quedar para *todos los proveedores* o para uno solo; los que crea un proveedor son solo suyos.
+* **Cuenta corriente**: al **entregar** un pedido se carga su total a la cuenta del cliente. La administración registra **pagos** (efectivo, transferencia, etc.) y **ajustes** con motivo. Estado: **Al día** (sin deuda), **Con saldo** (debe, dentro del plazo) o **Vencido** (la deuda más antigua pasó el plazo de pago del cliente; los pagos se aplican a las deudas más viejas primero).
+* **Pedidos**: se muestran como *Pedido número N del cliente X*. El proveedor debe elegir cliente al enviar el carrito (puede crear uno nuevo ahí mismo).
+* **Productos**: precio de **costo** (solo lo ven los administradores) y precio de **venta**, con ganancia y margen en vivo. El costo se guarda por pedido al momento de crearlo, así la ganancia histórica no cambia si luego cambia el costo.
+* **Agregar productos a un pedido** (administración): botón en el detalle de pedidos pendientes, aprobados o en preparación. En pedidos ya aprobados reserva el stock enseguida y avisa al proveedor y al depósito.
+* **Estadísticas**: períodos (hoy, 7/30/90 días, este mes, mes anterior, este año, personalizado) comparados con el período anterior; ventas, costo y ganancia en el tiempo, pedidos recibidos, estados, mejores clientes, productos y proveedores, por cobrar y valor del inventario.
+* Segundos administradores: para usar Clientes hay que tildar el permiso **Clientes y cuentas** en Usuarios.
+
+* **Datos del pedido**: cada pedido muestra su número, la **fecha**, la **hora** y el **proveedor** que lo realizó, tanto en las listas como en el detalle.

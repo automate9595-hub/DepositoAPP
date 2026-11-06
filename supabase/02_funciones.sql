@@ -310,8 +310,8 @@ begin
   perform public._set_status(p_order_id, 'APROBADO', nullif(trim(p_notes), ''));
 
   select profile_id into v_sup_profile from public.suppliers where id = v_o.supplier_id;
-  perform public._notify(v_sup_profile, 'Pedido aprobado', 'Su pedido #' || v_o.order_number || ' fue aprobado', p_order_id);
-  perform public._notify_warehouse('Pedido para preparar', 'Pedido #' || v_o.order_number || ' listo para preparar', p_order_id);
+  perform public._notify(v_sup_profile, 'Pedido aprobado', public._order_label(v_o.id) || ' fue aprobado', p_order_id);
+  perform public._notify_warehouse('Pedido para preparar', public._order_label(v_o.id) || ' listo para preparar', p_order_id);
   perform public._audit('APROBAR_PEDIDO', 'orders', p_order_id::text, p_items);
 end $fn$;
 
@@ -380,8 +380,8 @@ begin
   insert into public.order_status_history(order_id, from_status, to_status, user_id, note)
     values (p_order_id, v_o.status, v_o.status, auth.uid(), 'Cantidades modificadas');
   select profile_id into v_sup_profile from public.suppliers where id = v_o.supplier_id;
-  perform public._notify(v_sup_profile, 'Pedido modificado', 'Se modificaron cantidades del pedido #' || v_o.order_number, p_order_id);
-  perform public._notify_warehouse('Pedido modificado', 'Cambió el pedido #' || v_o.order_number, p_order_id);
+  perform public._notify(v_sup_profile, 'Pedido modificado', 'Se modificaron cantidades de: ' || public._order_label(v_o.id), p_order_id);
+  perform public._notify_warehouse('Pedido modificado', 'Cambió: ' || public._order_label(v_o.id), p_order_id);
   perform public._audit('MODIFICAR_PEDIDO', 'orders', p_order_id::text, p_items);
 end $fn$;
 
@@ -402,7 +402,7 @@ begin
   update public.orders set admin_notes = trim(p_reason) where id = p_order_id;
   perform public._set_status(p_order_id, 'RECHAZADO', trim(p_reason));
   select profile_id into v_sup_profile from public.suppliers where id = v_o.supplier_id;
-  perform public._notify(v_sup_profile, 'Pedido rechazado', 'Su pedido #' || v_o.order_number || ' fue rechazado: ' || trim(p_reason), p_order_id);
+  perform public._notify(v_sup_profile, 'Pedido rechazado', public._order_label(v_o.id) || ' fue rechazado: ' || trim(p_reason), p_order_id);
   perform public._audit('RECHAZAR_PEDIDO', 'orders', p_order_id::text, jsonb_build_object('motivo', p_reason));
 end $fn$;
 
@@ -428,9 +428,9 @@ begin
   perform public._set_status(p_order_id, 'CANCELADO', nullif(trim(p_reason), ''));
   if v_sup is null then
     select profile_id into v_sup_profile from public.suppliers where id = v_o.supplier_id;
-    perform public._notify(v_sup_profile, 'Pedido cancelado', 'Su pedido #' || v_o.order_number || ' fue cancelado', p_order_id);
+    perform public._notify(v_sup_profile, 'Pedido cancelado', public._order_label(v_o.id) || ' fue cancelado', p_order_id);
   else
-    perform public._notify_admins('Pedido cancelado', 'El proveedor canceló el pedido #' || v_o.order_number, p_order_id);
+    perform public._notify_admins('Pedido cancelado', 'El proveedor canceló: ' || public._order_label(v_o.id), p_order_id);
   end if;
   perform public._audit('CANCELAR_PEDIDO', 'orders', p_order_id::text, jsonb_build_object('motivo', p_reason));
 end $fn$;
@@ -486,7 +486,7 @@ begin
       perform public._set_status(v_o.id, 'PREPARADO_PARCIALMENTE', 'Faltante informado');
     end if;
     perform public._notify_admins('Faltante en pedido',
-      'Pedido #' || v_o.order_number || ': "' || v_it.product_name || '" ' || p_qty || ' de ' || v_it.qty_approved
+      public._order_label(v_o.id) || ': "' || v_it.product_name || '" ' || p_qty || ' de ' || v_it.qty_approved
       || ' (' || trim(p_reason) || ')', v_o.id);
     perform public._audit('FALTANTE', 'order_items', p_item_id::text,
       jsonb_build_object('aprobado', v_it.qty_approved, 'preparado', p_qty, 'motivo', p_reason));
@@ -528,8 +528,8 @@ begin
   update public.orders set prepared_at = now() where id = p_order_id;
   perform public._set_status(p_order_id, 'LISTO_PARA_ENTREGAR', case when v_short > 0 then v_short || ' producto(s) con faltante' end);
   select profile_id into v_sup_profile from public.suppliers where id = v_o.supplier_id;
-  perform public._notify(v_sup_profile, 'Pedido listo', 'Su pedido #' || v_o.order_number || ' está listo para entregar', p_order_id);
-  perform public._notify_admins('Pedido listo para entregar', 'Pedido #' || v_o.order_number || ' terminó de prepararse', p_order_id);
+  perform public._notify(v_sup_profile, 'Pedido listo', public._order_label(v_o.id) || ' está listo para entregar', p_order_id);
+  perform public._notify_admins('Pedido listo para entregar', public._order_label(v_o.id) || ' terminó de prepararse', p_order_id);
   perform public._audit('FINALIZAR_PREPARACION', 'orders', p_order_id::text, jsonb_build_object('faltantes', v_short));
 end $fn$;
 
@@ -599,7 +599,7 @@ begin
     where id = p_order_id;
   perform public._set_status(p_order_id, 'ENTREGADO', 'Entrega confirmada');
   select profile_id into v_sup_profile from public.suppliers where id = v_o.supplier_id;
-  perform public._notify(v_sup_profile, 'Pedido entregado', 'Su pedido #' || v_o.order_number || ' fue entregado', p_order_id);
+  perform public._notify(v_sup_profile, 'Pedido entregado', public._order_label(v_o.id) || ' fue entregado', p_order_id);
   perform public._audit('CONFIRMAR_ENTREGA', 'orders', p_order_id::text);
 end $fn$;
 

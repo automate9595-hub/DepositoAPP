@@ -10,7 +10,9 @@ import { accountView, noticesView } from './views/account.js';
 import { catalogView, cartView, supplierOrdersView } from './views/supplier.js';
 import { adminOrdersView } from './views/admin-orders.js';
 import { productsView, inventoryView } from './views/admin-catalog.js';
-import { usersView, statsView, auditView } from './views/admin-users.js';
+import { usersView, auditView } from './views/admin-users.js';
+import { statsView } from './views/stats.js';
+import { customersView } from './views/customers.js';
 import { warehouseOrdersView } from './views/warehouse.js';
 import { cartLines } from './cart.js';
 
@@ -25,6 +27,7 @@ const NAV = {
     { path: 'catalogo', label: 'Catálogo', icon: 'grid', render: catalogView },
     { path: 'carrito', label: 'Carrito', icon: 'cart', render: cartView, badge: () => cartLines(state.cart) },
     { path: 'pedidos', label: 'Mis pedidos', icon: 'list', render: supplierOrdersView },
+    { path: 'clientes', label: 'Clientes', icon: 'users', render: customersView },
     { path: 'cuenta', label: 'Cuenta', icon: 'user', render: accountView },
   ],
   deposito: [
@@ -34,6 +37,7 @@ const NAV = {
   admin: [
     { path: 'pedidos', label: 'Pedidos', icon: 'list', render: adminOrdersView, perm: 'orders' },
     { path: 'preparacion', label: 'Preparación', icon: 'clip', render: warehouseOrdersView, perm: 'orders' },
+    { path: 'clientes', label: 'Clientes', icon: 'users', render: customersView, perm: 'customers' },
     { path: 'productos', label: 'Productos', icon: 'box', render: productsView, perm: 'products' },
     { path: 'inventario', label: 'Inventario', icon: 'layers', render: inventoryView, perm: 'inventory' },
     { path: 'usuarios', label: 'Usuarios', icon: 'users', render: usersView, perm: 'users' },

@@ -13,7 +13,7 @@ export function newRequestId() {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-export const emptyCart = () => ({ items: {}, notes: '', requestId: newRequestId(), v: 1 });
+export const emptyCart = () => ({ items: {}, notes: '', customerId: '', requestId: newRequestId(), v: 1 });
 
 export function loadCart(storage, key) {
   try {
@@ -24,7 +24,7 @@ export function loadCart(storage, key) {
     for (const [id, it] of Object.entries(c.items)) {
       if (!it || toInt(it.qty) <= 0) delete c.items[id];
     }
-    return { items: c.items, notes: String(c.notes ?? ''), requestId: c.requestId, v: 1 };
+    return { items: c.items, notes: String(c.notes ?? ''), customerId: String(c.customerId ?? ''), requestId: c.requestId, v: 1 };
   } catch { return emptyCart(); }
 }
 

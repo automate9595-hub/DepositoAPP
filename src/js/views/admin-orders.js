@@ -1,8 +1,10 @@
 import { read, rpc, friendly } from '../api.js';
 import { esc, money, STATUS, toInt, statusLabel } from '../format.js';
-import { $, $$, busy, ok, fail, emptyBox, errorBox, spinner, confirmBox, askText, modal } from '../ui.js';
+import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner, confirmBox, askText, modal } from '../ui.js';
 import { state } from '../state.js';
 import { fetchOrder, orderCard, historyHtml, summaryHtml, totals } from './order-common.js';
+import { pickProducts } from './product-picker.js';
+import { can } from '../state.js';
 
 const PAGE = 20;
 const FILTERS = [['PENDIENTE_APROBACION', 'Pendientes'], ['APROBADO', 'Aprobados'], ['EN_PREPARACION', 'En preparación'], ['PREPARADO_PARCIALMENTE', 'Parciales'],
@@ -18,7 +20,7 @@ export async function adminOrdersView(el, ctx) {
     const my = ++gen; if (reset) { page = 0; rows = []; list.innerHTML = spinner(); }
     try {
       const { data } = await read((s) => {
-        let b = s.from('orders').select('id,order_number,status,total_requested,total_approved,total_delivered,created_at,suppliers(company_name)')
+        let b = s.from('orders').select('id,order_number,status,total_requested,total_approved,total_delivered,customer_name,created_at,suppliers(company_name)')
           .order('created_at', { ascending: st === 'PENDIENTE_APROBACION' }).range(page * PAGE, page * PAGE + PAGE - 1);
         if (st) b = b.eq('status', st); return b;
       });
@@ -71,11 +73,13 @@ async function detail(el, ctx, id) {
     };
     el.innerHTML = `<div class="stack"><a href="#/pedidos" class="small">← Pedidos</a>${summaryHtml(o)}
       ${worker ? `<p class="small muted">Preparado por: ${esc(worker)}</p>` : ''}
+      ${o.customer_id && can('customers') ? `<a class="btn sm block" href="#/clientes/${o.customer_id}">Ver cuenta del cliente</a>` : ''}
       <div class="card">${o.items.map(rowHtml).join('')}<hr class="hr">${totals(o)}</div>
       ${(pending || editable) ? `<label class="field"><span>Observaciones</span><textarea id="obs" maxlength="500">${esc(o.admin_notes || '')}</textarea></label>` : ''}
       <div class="stack">
         ${pending ? '<button class="btn accent block" id="ap">Aprobar y reservar stock</button><button class="btn danger block" id="rj">Rechazar</button>' : ''}
         ${editable ? `<a class="btn accent block" href="#/preparacion/${id}">Preparar este pedido ahora</a>` : ''}
+        ${(pending || editable) ? `<button class="btn block" id="addp">${icon('plus')} Agregar productos al pedido</button>` : ''}
         ${editable ? '<button class="btn primary block" id="md">Guardar cantidades modificadas</button><button class="btn block" id="as">Asignar / reasignar preparador</button>' : ''}
         ${o.status === 'LISTO_PARA_ENTREGAR' ? '<button class="btn accent block" id="dl">Confirmar entrega</button>' : ''}
         ${!final && !pending ? '<button class="btn danger block" id="cx">Cancelar pedido</button>' : ''}
@@ -93,6 +97,12 @@ async function detail(el, ctx, id) {
     const run = (sel, fn) => $(sel, el)?.addEventListener('click', (e) => busy(e.currentTarget, async () => { try { await fn(); } catch (x) { fail(friendly(x)); await load(); } }));
     run('#ap', async () => { await rpc('approve_order', { p_order_id: id, p_items: items(), p_notes: obs() }); ok('Pedido aprobado y stock reservado'); await load(); });
     run('#rj', async () => { const r = await askText('Rechazar pedido', 'Motivo del rechazo', { okText: 'Rechazar' }); if (!r) return; await rpc('reject_order', { p_order_id: id, p_reason: r }); ok('Pedido rechazado'); await load(); });
+    $('#addp', el)?.addEventListener('click', async () => {
+      const picks = await pickProducts({ title: 'Agregar productos al pedido', hint: pending ? 'Se suman a lo pedido por el proveedor. El stock se reserva al aprobar.' : 'Se suman al pedido y se reserva el stock enseguida.' });
+      if (!picks) return;
+      try { await rpc('admin_add_order_items', { p_order_id: id, p_items: picks.map((p) => ({ product_id: p.product_id, qty: p.qty })) }); ok(`${picks.length} producto${picks.length === 1 ? '' : 's'} agregado${picks.length === 1 ? '' : 's'} al pedido`); await load(); }
+      catch (x) { fail(friendly(x)); }
+    });
     run('#md', async () => { await rpc('modify_approved_order', { p_order_id: id, p_items: items(), p_notes: obs() }); ok('Cantidades y reservas actualizadas'); await load(); });
     run('#dl', async () => { if (!(await confirmBox('Confirmar entrega', 'Se descontará del stock físico lo preparado y se liberará el resto de la reserva.', { okText: 'Confirmar entrega' }))) return; await rpc('confirm_delivery', { p_order_id: id }); ok('Entrega confirmada'); await load(); });
     run('#cx', async () => { const r = await askText('Cancelar pedido', 'Motivo (opcional)', { required: false, okText: 'Cancelar pedido' }); if (r === null) return; await rpc('cancel_order', { p_order_id: id, p_reason: r || null }); ok('Pedido cancelado y reservas liberadas'); await load(); });

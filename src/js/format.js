@@ -18,6 +18,10 @@ export const dateTime = (iso) => {
   return d.toLocaleString(locale, { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 
+const validDate = (iso) => { const d = new Date(iso); return iso && !Number.isNaN(d.getTime()) ? d : null; };
+export const dateOnly = (iso) => { const d = validDate(iso); return d ? d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'; };
+export const timeOnly = (iso) => { const d = validDate(iso); return d ? d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false }) + ' hs' : '—'; };
+
 export const STATUS = {
   PENDIENTE_APROBACION: { label: 'Pendiente de aprobación', cls: 's-warn' },
   APROBADO: { label: 'Aprobado', cls: 's-info' },
@@ -40,8 +44,28 @@ export const ROLES = {
 export const roleLabel = (r) => ROLES[r] ?? 'Sin rol asignado';
 
 export const PERMS = {
-  orders: 'Pedidos', inventory: 'Inventario', products: 'Productos', stats: 'Estadísticas', users: 'Usuarios', audit: 'Auditoría',
+  orders: 'Pedidos', inventory: 'Inventario', products: 'Productos', customers: 'Clientes y cuentas', stats: 'Estadísticas', users: 'Usuarios', audit: 'Auditoría',
 };
+
+// "Pedido número 12 del cliente Juan Pérez"
+export const PUBLIC_CUSTOMER = 'Cliente público general';
+export const orderClient = (o) => o?.customer_name || PUBLIC_CUSTOMER;
+export const orderTitle = (o) => `Pedido número ${o.order_number}`;
+export const orderFullTitle = (o) => `${orderTitle(o)} del cliente ${orderClient(o)}`;
+
+// Estado de la cuenta del cliente
+export const ACCOUNT = {
+  AL_DIA: { label: 'Al día', cls: 's-ok' },
+  CON_SALDO: { label: 'Con saldo', cls: 's-warn' },
+  VENCIDO: { label: 'Vencido', cls: 's-bad' },
+};
+export const accountBadge = (s) => (ACCOUNT[s] ? `<span class="status ${ACCOUNT[s].cls}">${ACCOUNT[s].label}</span>` : '<span class="status s-idle">Contado</span>');
+
+export const compact = (n) => {
+  try { return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(Number(n || 0)); }
+  catch { return String(Math.round(Number(n || 0))); }
+};
+export const percent = (n, d = 1) => `${Number(n || 0).toLocaleString(locale, { maximumFractionDigits: d })} %`;
 
 // Quita caracteres que rompen los filtros de PostgREST (.or / ilike)
 export const cleanSearch = (s) => String(s ?? '').replace(/[,()%*\\:"']/g, ' ').trim().slice(0, 60);

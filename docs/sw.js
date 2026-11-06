@@ -1,21 +1,23 @@
 /* Service worker: shell de la app en caché; los datos de Supabase NUNCA se cachean. */
-const VERSION = 'ad97b2c7b6';
+const VERSION = 'f23717fcb6';
 const SHELL = 'shell-' + VERSION;
 const RUNTIME = 'runtime-v1';
 const ASSETS = [
  "./",
  "./index.html",
  "./manifest.webmanifest",
- "./css/app.css?v=ad97b2c7b6",
+ "./css/app.css?v=f23717fcb6",
  "./icons/icon-192.png",
  "./icons/icon-512.png",
  "./icons/icon-maskable-512.png",
  "./js/api.js",
  "./js/cart.js",
+ "./js/charts.js",
  "./js/format.js",
- "./js/main.js?v=ad97b2c7b6",
+ "./js/main.js?v=f23717fcb6",
  "./js/sound.js",
  "./js/state.js",
+ "./js/stats-utils.js",
  "./js/supa.js",
  "./js/theme.js",
  "./js/ui.js",
@@ -24,7 +26,10 @@ const ASSETS = [
  "./js/views/admin-orders.js",
  "./js/views/admin-users.js",
  "./js/views/auth.js",
+ "./js/views/customers.js",
  "./js/views/order-common.js",
+ "./js/views/product-picker.js",
+ "./js/views/stats.js",
  "./js/views/supplier.js",
  "./js/views/warehouse.js"
 ];

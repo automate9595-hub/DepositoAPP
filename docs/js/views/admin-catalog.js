@@ -5,6 +5,8 @@ import { $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal, img, icon, c
 import { can } from '../state.js';
 
 const PAGE = 25;
+const costOf = (p) => Number(one(p?.product_costs)?.cost_price ?? 0);
+const marginOf = (p) => (Number(p.price) > 0 ? ((Number(p.price) - costOf(p)) / Number(p.price)) * 100 : 0);
 
 // ---------------- Productos ----------------
 export async function productsView(el) {
@@ -20,15 +22,15 @@ export async function productsView(el) {
     const my = ++gen; if (reset) { page = 0; rows = []; list.innerHTML = spinner(); }
     try {
       const { data } = await read((s) => {
-        let b = s.from('products').select('id,code,name,description,price,photo_url,active,category_id,inventory(physical_stock,reserved_stock,available_stock)').order('name').range(page * PAGE, page * PAGE + PAGE - 1);
+        let b = s.from('products').select('id,code,name,description,price,photo_url,active,category_id,inventory(physical_stock,reserved_stock,available_stock),product_costs(cost_price)').order('name').range(page * PAGE, page * PAGE + PAGE - 1);
         const t = cleanSearch(q); if (t) b = b.or(`name.ilike.%${t}%,code.ilike.%${t}%`); return b;
       });
       if (my !== gen) return;
       rows = rows.concat(data || []); more.classList.toggle('hidden', (data || []).length < PAGE);
       list.innerHTML = rows.length ? rows.map((p) => `<div class="card click row" data-id="${p.id}">
         <div class="thumb" style="display:grid;place-items:center;overflow:hidden">${img(p.photo_url, p.name) || icon('image')}</div>
-        <div class="grow"><div class="pname">${esc(p.name)}</div><div class="muted small ellipsis">${esc(p.code)} · ${money(p.price)}</div>
-        <div class="small">Disponible: <b>${one(p.inventory)?.available_stock ?? 0}</b></div></div>
+        <div class="grow"><div class="pname">${esc(p.name)}</div><div class="muted small ellipsis">${esc(p.code)} · Venta ${money(p.price)} · Costo ${money(costOf(p))}</div>
+        <div class="small">Disponible: <b>${one(p.inventory)?.available_stock ?? 0}</b>${Number(p.price) > 0 ? ` · Margen <b style="color:${marginOf(p) >= 0 ? 'var(--ok)' : 'var(--bad)'}">${marginOf(p).toFixed(0)}%</b>` : ''}</div></div>
         ${p.active ? '' : '<span class="status s-idle">Inactivo</span>'}</div>`).join('') : emptyBox('No hay productos. Cree el primero con "Nuevo".');
     } catch (e) { if (my === gen) { list.innerHTML = errorBox(friendly(e)); $('[data-retry]', list)?.addEventListener('click', () => load(true)); } }
   }
@@ -50,7 +52,9 @@ function productForm(p, cats) {
       <label class="field"><span>Descripción</span><textarea name="description" maxlength="500">${esc(p?.description || '')}</textarea></label>
       <label class="field"><span>Categoría</span><select name="category_id"><option value="">Sin categoría</option>
         ${cats.filter((c) => c.active || c.id === p?.category_id).map((c) => `<option value="${c.id}" ${c.id === p?.category_id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
-      <label class="field"><span>Precio</span><input name="price" inputmode="decimal" value="${p ? p.price : ''}" required></label>
+      <div class="row"><label class="field grow"><span>Precio de costo</span><input name="cost" inputmode="decimal" value="${p ? costOf(p) : ''}" placeholder="0"></label>
+        <label class="field grow"><span>Precio de venta</span><input name="price" inputmode="decimal" value="${p ? p.price : ''}" required></label></div>
+      <p class="small muted" id="mg" aria-live="polite"></p>
       ${isNew ? '<label class="field"><span>Stock inicial (opcional)</span><input name="stock" inputmode="numeric" value="0"></label>' : ''}
       <div class="field"><span>Fotografía</span><div class="row"><div class="thumb" id="pv" style="display:grid;place-items:center;overflow:hidden">${img(p?.photo_url, '') || icon('image')}</div>
         <input name="photo" type="file" accept="image/*" class="grow"></div></div>
@@ -60,12 +64,19 @@ function productForm(p, cats) {
     </form>`, {
     onMount: (ov, close) => {
       const f = $('#f', ov); const err = $('#err', ov);
+      const num = (v) => Number(String(v ?? '').trim().replace(',', '.'));
+      const margin = () => {
+        const c = num(f.cost.value || 0); const v = num(f.price.value);
+        $('#mg', ov).innerHTML = Number.isFinite(c) && Number.isFinite(v) && v > 0 ? `Ganancia por unidad: <b style="color:${v - c >= 0 ? 'var(--ok)' : 'var(--bad)'}">${money(v - c)}</b> · Margen sobre la venta: <b>${(((v - c) / v) * 100).toFixed(1)}%</b> · Recargo sobre el costo: <b>${c > 0 ? (((v - c) / c) * 100).toFixed(1) + '%' : '—'}</b>` : 'El costo solo lo ven los administradores.';
+      };
+      f.cost.addEventListener('input', margin); f.price.addEventListener('input', margin); margin();
       f.photo.addEventListener('change', () => { const file = f.photo.files[0]; if (file) { $('#pv', ov).innerHTML = `<img class="ok" alt="" src="${URL.createObjectURL(file)}" style="width:100%;height:100%;object-fit:cover">`; } });
       f.addEventListener('submit', async (e) => {
         e.preventDefault(); err.classList.add('hidden');
-        const price = Number(String(f.price.value).replace(',', '.'));
+        const price = Number(String(f.price.value).replace(',', '.')); const cost = f.cost.value.trim() === '' ? 0 : Number(String(f.cost.value).replace(',', '.'));
         if (!f.code.value.trim() || !f.name.value.trim()) return show('Código y nombre son obligatorios.');
-        if (!Number.isFinite(price) || price < 0) return show('Ingrese un precio válido (0 o mayor).');
+        if (!Number.isFinite(price) || price < 0) return show('Ingrese un precio de venta válido (0 o mayor).');
+        if (!Number.isFinite(cost) || cost < 0) return show('Ingrese un precio de costo válido (0 o mayor).');
         const stock = isNew ? toInt(f.stock.value) : 0;
         if (stock < 0) return show('El stock inicial no puede ser negativo.');
         await busy($('button:not([type=button])', f), async () => {
@@ -82,9 +93,11 @@ function productForm(p, cats) {
             const row = { code: f.code.value.trim(), name: f.name.value.trim(), description: f.description.value.trim(), category_id: f.category_id.value || null, price, photo_url, active: f.active.checked };
             if (isNew) {
               const { data } = await write((s) => s.from('products').insert(row).select('id').single());
+              await rpc('set_product_cost', { p_product_id: data.id, p_cost: cost });
               if (stock > 0) await rpc('adjust_stock', { p_product_id: data.id, p_delta: stock, p_type: 'INGRESO', p_note: 'Stock inicial' });
             } else {
               await write((s) => s.from('products').update(row).eq('id', p.id));
+              await rpc('set_product_cost', { p_product_id: p.id, p_cost: cost });
             }
             ok('Producto guardado'); close(true);
           } catch (x) { show(friendly(x)); }

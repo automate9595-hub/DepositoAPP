@@ -56,8 +56,8 @@ begin
 
   -- 6. Crear un pedido (proveedor 1) y 17. comprobar que no se duplica
   perform set_config('request.jwt.claims', json_build_object('sub', us1, 'role', 'authenticated')::text, true);
-  o1 := public.submit_order(req, jsonb_build_array(jsonb_build_object('product_id', p1, 'qty', 6)), 'nota');
-  o1b := public.submit_order(req, jsonb_build_array(jsonb_build_object('product_id', p1, 'qty', 6)), 'nota');
+  o1 := public.submit_order(req, jsonb_build_array(jsonb_build_object('product_id', p1, 'qty', 6)), 'nota', (select id from public.customers where is_public));
+  o1b := public.submit_order(req, jsonb_build_array(jsonb_build_object('product_id', p1, 'qty', 6)), 'nota', (select id from public.customers where is_public));
   if o1 is distinct from o1b then raise exception 'FALLO 17: el reintento creó otro pedido'; end if;
   select count(*) into n from public.orders where client_request_id = req;
   if n <> 1 then raise exception 'FALLO 17: % pedidos duplicados', n; end if;

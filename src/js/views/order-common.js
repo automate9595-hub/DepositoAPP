@@ -1,7 +1,7 @@
 import { read } from '../api.js';
-import { esc, money, dateTime, statusBadge, statusLabel, one } from '../format.js';
+import { esc, money, dateTime, dateOnly, timeOnly, statusBadge, statusLabel, one, orderTitle, orderClient } from '../format.js';
 
-export const ORDER_SELECT = 'id,order_number,status,supplier_notes,admin_notes,total_requested,total_approved,total_delivered,assigned_to,created_at,approved_at,prepared_at,delivered_at,suppliers(company_name)';
+export const ORDER_SELECT = 'id,order_number,status,supplier_notes,admin_notes,total_requested,total_approved,total_delivered,assigned_to,customer_id,customer_name,created_at,approved_at,prepared_at,delivered_at,suppliers(company_name)';
 
 export async function fetchOrder(id) {
   const [o, items, hist] = await Promise.all([
@@ -15,9 +15,10 @@ export async function fetchOrder(id) {
 
 export function orderCard(o, extra = '') {
   return `<div class="card click" data-order="${o.id}">
-    <div class="row between"><b>Pedido #${o.order_number}</b>${statusBadge(o.status)}</div>
-    ${o.suppliers ? `<div class="ellipsis">${esc(one(o.suppliers)?.company_name ?? '')}</div>` : ''}
-    <div class="row between muted small"><span>${dateTime(o.created_at)}</span>
+    <div class="row between"><b>${orderTitle(o)}</b>${statusBadge(o.status)}</div>
+    <div class="ellipsis">del cliente <b>${esc(orderClient(o))}</b></div>
+    ${o.suppliers ? `<div class="small ellipsis"><span class="muted">Proveedor:</span> <b>${esc(one(o.suppliers)?.company_name ?? '')}</b></div>` : ''}
+    <div class="row between muted small"><span>${dateOnly(o.created_at)} · ${timeOnly(o.created_at)}</span>
     <b class="mono" style="color:var(--text)">${money(o.total_delivered ?? o.total_approved ?? o.total_requested)}</b></div>${extra}</div>`;
 }
 
@@ -27,9 +28,9 @@ export function historyHtml(o) {
 
 export function summaryHtml(o) {
   return `<div class="card stack">
-    <div class="row between"><h2>Pedido #${o.order_number}</h2>${statusBadge(o.status)}</div>
-    <div class="kv small"><span class="muted">Proveedor</span><span>${esc(o.supplier)}</span>
-      <span class="muted">Fecha</span><span>${dateTime(o.created_at)}</span>
+    <div class="row between"><div><h2>${orderTitle(o)}</h2><div>del cliente <b>${esc(orderClient(o))}</b></div></div>${statusBadge(o.status)}</div>
+    <div class="kv small"><span class="muted">Cliente</span><span>${esc(orderClient(o))}</span><span class="muted">Pedido realizado por</span><b>${esc(o.supplier)}</b>
+      <span class="muted">Fecha</span><span>${dateOnly(o.created_at)}</span><span class="muted">Hora</span><span>${timeOnly(o.created_at)}</span>
       ${o.delivered_at ? `<span class="muted">Entregado</span><span>${dateTime(o.delivered_at)}</span>` : ''}</div>
     ${o.supplier_notes ? `<p class="small"><span class="muted">Nota del proveedor:</span> ${esc(o.supplier_notes)}</p>` : ''}
     ${o.admin_notes ? `<p class="small"><span class="muted">Observaciones:</span> ${esc(o.admin_notes)}</p>` : ''}</div>`;

@@ -5,6 +5,7 @@ import { customerForm } from './customers.js';
 import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner, photoBox, img, confirmBox } from '../ui.js';
 import { setQty, getQty, removeItem, itemList, cartTotal, cartCount, toPayload, resetCart, MAX_QTY } from '../cart.js';
 import { fetchOrder, orderCard, historyHtml, summaryHtml, totals } from './order-common.js';
+import { attachScanner, orderToolsHtml, bindOrderTools } from '../tools.js';
 
 const PAGE = 20;
 
@@ -18,6 +19,7 @@ export async function catalogView(el) {
     </div><div id="g" class="grid"></div><div id="s" class="empty hidden"></div>
     <button class="btn block hidden" id="more" style="margin-top:12px">Ver más productos</button>`;
   const grid = $('#g', el); const status = $('#s', el); const more = $('#more', el);
+  attachScanner($('#q', el)); // botón de cámara para buscar por código de barras (si el dispositivo lo permite)
 
   const card = (p) => {
     const av = one(p.inventory)?.available_stock ?? 0;
@@ -174,8 +176,12 @@ async function orderDetail(el, ctx, id) {
           ${i.qty_approved != null ? `<div>Aprobado: <b>${i.qty_approved}</b></div>` : ''}
           ${i.qty_delivered != null ? `<div>Entregado: <b>${i.qty_delivered}</b></div>` : ''}</div></div>`).join('')}
           <hr class="hr">${totals(o)}</div>
+        ${orderToolsHtml()}
+        <button class="btn primary block" id="rep">${icon('repeat')} Repetir este pedido</button>
         <div class="card"><h3 style="margin-bottom:8px">Seguimiento</h3>${historyHtml(o)}</div>
         ${o.status === 'PENDIENTE_APROBACION' ? '<button class="btn danger block" id="cx">Cancelar pedido</button>' : ''}</div>`;
+      bindOrderTools(el, o);
+      $('#rep', el)?.addEventListener('click', (e) => busy(e.currentTarget, () => repeatOrder(o, ctx)));
       $('#cx', el)?.addEventListener('click', async (e) => {
         const btn = e.currentTarget;
         if (!(await confirmBox('Cancelar pedido', 'El pedido pendiente se cancelará.', { danger: true, okText: 'Cancelar pedido' }))) return;
@@ -185,4 +191,26 @@ async function orderDetail(el, ctx, id) {
   }
   await load();
   return { refresh: load };
+}
+
+// Vuelve a cargar en el carrito los productos de un pedido anterior, con precios y stock ACTUALES
+async function repeatOrder(o, ctx) {
+  try {
+    const ids = o.items.map((i) => i.product_id);
+    const { data } = await read((s) => s.from('products').select('id,code,name,price,photo_url,active,inventory(available_stock)').in('id', ids));
+    const byId = Object.fromEntries((data || []).map((p) => [p.id, p]));
+    let added = 0; const skipped = []; const reduced = [];
+    for (const i of o.items) {
+      const p = byId[i.product_id]; const av = one(p?.inventory)?.available_stock ?? 0;
+      if (!p || !p.active || av <= 0) { skipped.push(i.product_name); continue; }
+      const q = Math.min(i.qty_requested, av);
+      if (q < i.qty_requested) reduced.push(i.product_name);
+      setQty(state.cart, { ...p, available: av }, q); added += 1;
+    }
+    if (!added) { fail('Ningún producto de este pedido tiene stock disponible ahora.'); return; }
+    if (o.customer_id) state.cart.customerId = o.customer_id;
+    persistCart();
+    ok(`${added} producto${added === 1 ? '' : 's'} en el carrito${reduced.length ? ` · cantidad ajustada al stock en ${reduced.length}` : ''}${skipped.length ? ` · sin stock: ${skipped.length}` : ''}`);
+    ctx.navigate('#/carrito');
+  } catch (x) { fail(friendly(x)); }
 }

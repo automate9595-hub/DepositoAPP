@@ -1,26 +1,19 @@
-PUBLICAR DEPOSITOAPP CON GITHUB ACTIONS (SIN NODE.JS)
-======================================================
+SUBIR DEPOSITOAPP A GITHUB (AUTOMATICO, SIN GIT NI NODE.JS)
+============================================================
 
-La carpeta docs ya contiene la aplicacion web preparada. No necesita Node.js
-8.8.1, Node 18 ni Git instalado en su computadora.
+1) Haga doble clic en SUBIR_A_GITHUB_SIN_NODE.bat.
+2) La PRIMERA vez pide un "token" de GitHub: se abre la pagina para crearlo
+   (dejar marcados "repo" y "workflow" > Generate token), copie el codigo
+   ghp_... y peguelo en la ventana negra. Queda guardado cifrado en su
+   usuario de Windows; las siguientes veces no lo vuelve a pedir.
+3) Se muestra una barra de progreso al comparar y al subir cada archivo.
+   Solo sube los archivos que cambiaron.
+4) Al terminar espera y muestra el estado de la publicacion en GitHub Pages.
+   La app queda en https://automate9595-hub.github.io/DepositoAPP/
 
-1) Ejecute SUBIR_A_GITHUB_SIN_NODE.bat.
-2) En la pagina del repositorio de GitHub, use Add file > Upload files.
-3) Suba TODO el contenido de la carpeta DepositoAPP (no suba la carpeta
-   contenedora DepositoAPP como una carpeta adicional). Incluya docs y
-   .github/workflows/publicar-pages.yml. Si GitHub no muestra .github,
-   asegurese de que el ZIP fue extraido y cargue la carpeta .github también.
-4) Pulse Commit changes y confirme en la rama main.
-5) SOLO LA PRIMERA VEZ: en GitHub abra Settings > Pages > Build and deployment.
-   En Source seleccione GitHub Actions.
-6) Abra Actions y espere a que "Publicar DepositoAPP en GitHub Pages" termine
-   con marca verde. El workflow publica docs automaticamente.
-7) La aplicacion quedara en:
-   https://automate9595-hub.github.io/DepositoAPP/
+Requisitos: Windows 8 o superior (PowerShell 3.0, ya incluido) e Internet.
+No necesita Git ni Node.js. El token queda en %APPDATA%\DepositoAPP\token.dat
+(borre ese archivo si quiere que lo vuelva a pedir).
 
-Configuracion Supabase:
-La URL y la clave PUBLICABLE del proyecto ya están colocadas en docs/config.js.
-No cambie ni comparta ninguna clave secret/service_role.
-
-Si la carga se hace desde el navegador, GitHub puede requerir subir los
-archivos visibles individualmente. Asegurese de incluir .github/workflows.
+Nota: el programa sube y actualiza archivos; no borra de GitHub los archivos
+que usted elimine en su carpeta.

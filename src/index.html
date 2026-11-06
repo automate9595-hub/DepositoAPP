@@ -16,7 +16,38 @@
 <body>
   <div id="app"><div class="authwrap"><div class="skeleton-list" aria-busy="true"><div></div><div></div></div></div></div>
   <noscript>Esta aplicación necesita JavaScript.</noscript>
+  <script>
+  // Guardián de arranque: si la app no logra mostrar el login en 15 s (librería bloqueada, caché vieja, sesión
+  // corrupta, red caída) muestra una pantalla de ayuda con botones para reintentar o reparar. Nunca queda "cargando" sin fin.
+  (function () {
+    window.__appReady = false;
+    function help(msg) {
+      if (window.__appReady) return;
+      var app = document.getElementById('app'); if (!app) return;
+      app.innerHTML = '<div class="aurora"></div><div class="authwrap"><div class="card stack">' +
+        '<h2>La aplicación no pudo iniciar</h2><p class="notice bad" id="__m"></p>' +
+        '<p class="muted small">Esto suele deberse a una conexión lenta, a una versión vieja guardada en el teléfono o a que el proyecto de Supabase está pausado.</p>' +
+        '<button class="btn primary block" id="__r">Reintentar</button>' +
+        '<button class="btn block" id="__x">Reparar (borrar caché y reiniciar)</button></div></div>';
+      document.getElementById('__m').textContent = msg;
+      document.getElementById('__r').onclick = function () { location.reload(); };
+      document.getElementById('__x').onclick = function () { window.__repair(); };
+    }
+    window.__help = help;
+    window.__repair = function () {
+      var done = function () { try { localStorage.removeItem('deposito-auth'); localStorage.removeItem('deposito-profile-cache'); } catch (e) {} location.replace(location.pathname + '?r=' + Date.now()); };
+      try {
+        Promise.all([
+          navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }) : 0,
+          window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : 0,
+        ]).then(done, done);
+      } catch (e) { done(); }
+    };
+    setTimeout(function () { help('Está tardando demasiado en cargar.'); }, 15000);
+    window.addEventListener('unhandledrejection', function (e) { console.error(e.reason); });
+  })();
+  </script>
   <script src="config.js?v=__VERSION__"></script>
-  <script type="module" src="js/main.js?v=__VERSION__"></script>
+  <script type="module" src="js/main.js?v=__VERSION__" onerror="window.__help&&window.__help('No se pudo descargar un archivo de la aplicación.')"></script>
 </body>
 </html>

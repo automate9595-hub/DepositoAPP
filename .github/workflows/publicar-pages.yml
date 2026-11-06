@@ -1,5 +1,7 @@
 name: Publicar DepositoAPP en GitHub Pages
 
+# Cada vez que sube cambios a la rama main, GitHub compila la app desde src/ (con un número de versión nuevo)
+# y la publica. Las aplicaciones instaladas detectan la versión nueva y se actualizan solas.
 on:
   push:
     branches: [main]
@@ -24,13 +26,24 @@ jobs:
       - name: Descargar proyecto
         uses: actions/checkout@v4
 
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Compilar la aplicación desde src/
+        run: |
+          # Si la compilación fallara por cualquier motivo, se publica la carpeta docs/ ya preparada.
+          node scripts/build.mjs --ci --out=_site || { echo "::warning::Se publica docs/ sin recompilar"; rm -rf _site; cp -r docs _site; }
+          test -f _site/index.html
+
       - name: Configurar Pages
         uses: actions/configure-pages@v5
 
       - name: Preparar aplicación
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: _site
 
       - name: Publicar aplicación
         id: deployment

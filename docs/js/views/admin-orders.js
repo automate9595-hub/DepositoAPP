@@ -1,5 +1,6 @@
 import { read, rpc, friendly } from '../api.js';
-import { esc, money, STATUS, toInt, statusLabel } from '../format.js';
+import { esc, money, STATUS, toInt, statusLabel, dateTime, one } from '../format.js';
+import { orderToolsHtml, bindOrderTools, downloadCsv, fetchAll, stamp } from '../tools.js';
 import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner, confirmBox, askText, modal } from '../ui.js';
 import { state } from '../state.js';
 import { fetchOrder, orderCard, historyHtml, summaryHtml, totals } from './order-common.js';
@@ -14,8 +15,19 @@ export async function adminOrdersView(el, ctx) {
   if (ctx.args[0]) return detail(el, ctx, ctx.args[0]);
   let st = sessionStorage.getItem('adm-filter') ?? 'PENDIENTE_APROBACION'; let page = 0; let rows = []; let gen = 0;
   el.innerHTML = `<div class="stack"><div class="chips">${FILTERS.map(([v, l]) => `<button class="chip ${v === st ? 'on' : ''}" data-f="${v}">${l}</button>`).join('')}</div>
+    <button class="btn sm block" id="exp" type="button">${icon('download')} Exportar a Excel (CSV)</button>
     <div id="l" class="list"></div><button class="btn block hidden" id="more">Ver más</button></div>`;
   const list = $('#l', el); const more = $('#more', el);
+  async function exportCsv(btn) {
+    await busy(btn, async () => {
+      try {
+        const all = await fetchAll((a, b) => read((s) => { let r = s.from('orders').select('order_number,status,customer_name,total_requested,total_approved,total_delivered,created_at,delivered_at,suppliers(company_name)').order('created_at', { ascending: false }).range(a, b); if (st) r = r.eq('status', st); return r; }));
+        downloadCsv(`pedidos-${st ? st.toLowerCase() : 'todos'}-${stamp()}.csv`, ['Pedido', 'Fecha', 'Estado', 'Cliente', 'Proveedor', 'Total pedido', 'Total aprobado', 'Total entregado', 'Entregado el'],
+          all.map((o) => [o.order_number, dateTime(o.created_at), statusLabel(o.status), o.customer_name || 'Cliente público general', one(o.suppliers)?.company_name || '', o.total_requested, o.total_approved ?? '', o.total_delivered ?? '', o.delivered_at ? dateTime(o.delivered_at) : '']));
+        ok(`Se exportaron ${all.length} pedidos`);
+      } catch (x) { fail(friendly(x)); }
+    });
+  }
   async function load(reset) {
     const my = ++gen; if (reset) { page = 0; rows = []; list.innerHTML = spinner(); }
     try {
@@ -30,6 +42,7 @@ export async function adminOrdersView(el, ctx) {
     } catch (e) { if (my === gen) { list.innerHTML = errorBox(friendly(e)); $('[data-retry]', list)?.addEventListener('click', () => load(true)); } }
   }
   el.addEventListener('click', (e) => {
+    if (e.target.closest('#exp')) { exportCsv(e.target.closest('#exp')); return; }
     const f = e.target.closest('[data-f]'); if (f) { st = f.dataset.f; sessionStorage.setItem('adm-filter', st); $$('.chip', el).forEach((c) => c.classList.toggle('on', c === f)); load(true); return; }
     const c = e.target.closest('[data-order]'); if (c) ctx.navigate('#/pedidos/' + c.dataset.order);
     if (e.target === more) { page += 1; load(false); }
@@ -75,6 +88,7 @@ async function detail(el, ctx, id) {
       ${worker ? `<p class="small muted">Preparado por: ${esc(worker)}</p>` : ''}
       ${o.customer_id && can('customers') ? `<a class="btn sm block" href="#/clientes/${o.customer_id}">Ver cuenta del cliente</a>` : ''}
       <div class="card">${o.items.map(rowHtml).join('')}<hr class="hr">${totals(o)}</div>
+      ${orderToolsHtml()}
       ${(pending || editable) ? `<label class="field"><span>Observaciones</span><textarea id="obs" maxlength="500">${esc(o.admin_notes || '')}</textarea></label>` : ''}
       <div class="stack">
         ${pending ? '<button class="btn accent block" id="ap">Aprobar y reservar stock</button><button class="btn danger block" id="rj">Rechazar</button>' : ''}
@@ -87,6 +101,7 @@ async function detail(el, ctx, id) {
       </div>
       <div class="card"><h3 style="margin-bottom:8px">Historial</h3>${historyHtml(o)}</div></div>`;
 
+    bindOrderTools(el, o);
     const items = () => $$('[data-item]', el).map((r) => ({ item_id: r.dataset.item, qty: toInt($('[data-q]', r).value) }));
     el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-d]'); if (!b) return;

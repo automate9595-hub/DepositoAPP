@@ -325,3 +325,13 @@ a.btn:hover { text-decoration: none; }
 @keyframes barUp { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 @keyframes donutIn { to { stroke-dasharray: var(--len) calc(100 - var(--len)); } }
 @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+
+/* ---- Escáner, alertas de stock bajo ---- */
+.scanbtn { flex: none; width: 52px; padding: 0; display: grid; place-items: center; }
+.scanbox { position: relative; border-radius: 16px; overflow: hidden; background: #000; aspect-ratio: 4 / 3; }
+.scanbox video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scanline { position: absolute; left: 8%; right: 8%; top: 50%; height: 2px; background: #ff4d4d; box-shadow: 0 0 12px 2px rgba(255, 77, 77, .8); animation: scan 1.6s ease-in-out infinite alternate; }
+@keyframes scan { from { top: 22%; } to { top: 78%; } }
+@media (prefers-reduced-motion: reduce) { .scanline { animation: none; } }
+.lowbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lowbar input { width: 84px; }

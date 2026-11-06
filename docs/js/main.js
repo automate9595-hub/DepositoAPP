@@ -1,4 +1,4 @@
-import { supabase, configured, config } from './supa.js';
+import { supabase, configured, config, libError, storedSession, withTimeout } from './supa.js';
 import { state, bus, initCart, cacheProfile, cachedProfile, clearProfileCache, role, can } from './state.js';
 import { setLocale, esc } from './format.js';
 import { icon, $, $$, toast, toastAction, errorBox, spinner, themeButton, soundButton, initEffects } from './ui.js';
@@ -66,6 +66,7 @@ function setConn(kind) {
 
 // ---------- Estructura de pantalla ----------
 function renderShell() {
+  window.__appReady = true;
   app.innerHTML = `
     <header class="topbar"><h1 id="title"></h1>
       <span class="conn" id="conn"><i></i><b>En línea</b></span>
@@ -214,14 +215,25 @@ async function loadProfile(user) {
     throw e;
   }
 }
-async function startSession(session) {
-  if (!session?.user) return;
-  if (started === session.user.id && state.profile) return;
+let starting = null;
+function startSession(session) {
+  if (!session?.user) return Promise.resolve();
+  if (started === session.user.id && state.profile) return Promise.resolve();
+  if (starting) return starting; // evita arrancar dos veces a la vez (evento SIGNED_IN + inicio directo)
+  starting = doStartSession(session).finally(() => { starting = null; });
+  return starting;
+}
+const AUTH_RE = /jwt|invalid.*token|refresh token|not authenticated|401/i;
+async function doStartSession(session) {
   started = session.user.id;
   state.user = session.user;
   let prof;
   try { prof = await loadProfile(session.user); }
-  catch (e) { started = null; renderOffline(app, friendly(e), () => startSession(session), logout); return; }
+  catch (e) {
+    started = null;
+    if (!e.network && AUTH_RE.test(String(e.message))) { await logout(); return; } // sesión vencida/corrupta → login limpio
+    renderOffline(app, friendly(e), () => startSession(session), logout); return;
+  }
   if (!prof || !prof.active || !prof.role) { state.profile = null; renderPending(app, prof, logout); return; }
   state.profile = prof;
   initCart(prof.id);
@@ -278,6 +290,7 @@ function setupSW() {
 async function boot() {
   setupSW();
   if (!configured) { renderSetupError(app); return; }
+  if (!supabase) { renderOffline(app, 'No se pudo cargar un componente de la aplicación (¿Internet lento o bloqueado?). Toque Reintentar.', () => location.reload(), () => window.__repair?.()); return; }
   setLocale(config.CURRENCY, config.LOCALE);
   supabase.auth.onAuthStateChange((evt, session) => {
     // No se llaman métodos de supabase dentro del callback (evita bloqueos): se difiere
@@ -286,8 +299,11 @@ async function boot() {
       else if (evt === 'SIGNED_IN' && session) startSession(session);
     }, 0);
   });
+  // Inicio de sesión directo desde el formulario (no depende solo del evento de la librería)
+  bus.on('login', (session) => startSession(session));
   let session = null;
-  try { ({ data: { session } } = await supabase.auth.getSession()); } catch { /* sin red al abrir */ }
+  try { ({ data: { session } } = await withTimeout(supabase.auth.getSession(), 8000, 'timeout leyendo la sesión')); }
+  catch { session = storedSession(); } // plan B: la sesión guardada en el teléfono
   if (session) await startSession(session); else renderLogin(app);
 }
 boot();

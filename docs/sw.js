@@ -1,25 +1,27 @@
 /* Service worker: shell de la app en caché; los datos de Supabase NUNCA se cachean. */
-const VERSION = 'f23717fcb6';
+const VERSION = '3f9ebdee50';
 const SHELL = 'shell-' + VERSION;
 const RUNTIME = 'runtime-v1';
 const ASSETS = [
  "./",
  "./index.html",
  "./manifest.webmanifest",
- "./css/app.css?v=f23717fcb6",
+ "./css/app.css?v=3f9ebdee50",
  "./icons/icon-192.png",
  "./icons/icon-512.png",
  "./icons/icon-maskable-512.png",
  "./js/api.js",
  "./js/cart.js",
  "./js/charts.js",
+ "./js/export-utils.js",
  "./js/format.js",
- "./js/main.js?v=f23717fcb6",
+ "./js/main.js?v=3f9ebdee50",
  "./js/sound.js",
  "./js/state.js",
  "./js/stats-utils.js",
  "./js/supa.js",
  "./js/theme.js",
+ "./js/tools.js",
  "./js/ui.js",
  "./js/views/account.js",
  "./js/views/admin-catalog.js",
@@ -60,14 +62,23 @@ self.addEventListener('fetch', (e) => {
       e.respondWith(fetch(req, { cache: 'no-cache' }).catch(() => caches.match('./index.html', { ignoreSearch: true })));
       return;
     }
-    e.respondWith(caches.match(req, { ignoreSearch: false }).then((hit) => hit || fetch(req).then((r) => {
-      if (r.ok) { const cp = r.clone(); caches.open(SHELL).then((c) => c.put(req, cp)); }
-      return r;
-    })));
+    // Red primero (con tiempo límite) y caché solo si no hay red: así nunca se mezclan módulos JS de versiones distintas
+    // (un main.js nuevo con un supa.js viejo dejaba la app colgada en "cargando").
+    e.respondWith((async () => {
+      const cache = await caches.open(SHELL);
+      try {
+        const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 8000);
+        const r = await fetch(req, { signal: ctrl.signal }); clearTimeout(t);
+        if (r.ok) cache.put(req, r.clone());
+        return r;
+      } catch {
+        return (await cache.match(req)) || (await caches.match(req)) || Response.error();
+      }
+    })());
     return;
   }
   // Librería de Supabase (CDN) y fotos públicas: caché con actualización en segundo plano
-  if (url.hostname === 'cdn.jsdelivr.net' || url.pathname.startsWith('/storage/v1/object/public/')) {
+  if (['cdn.jsdelivr.net', 'esm.sh', 'unpkg.com'].includes(url.hostname) || url.pathname.startsWith('/storage/v1/object/public/')) {
     e.respondWith(caches.open(RUNTIME).then(async (c) => {
       const hit = await c.match(req);
       const net = fetch(req).then((r) => { if (r.ok || r.type === 'opaque') c.put(req, r.clone()); return r; }).catch(() => hit);

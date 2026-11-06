@@ -30,14 +30,23 @@ self.addEventListener('fetch', (e) => {
       e.respondWith(fetch(req, { cache: 'no-cache' }).catch(() => caches.match('./index.html', { ignoreSearch: true })));
       return;
     }
-    e.respondWith(caches.match(req, { ignoreSearch: false }).then((hit) => hit || fetch(req).then((r) => {
-      if (r.ok) { const cp = r.clone(); caches.open(SHELL).then((c) => c.put(req, cp)); }
-      return r;
-    })));
+    // Red primero (con tiempo límite) y caché solo si no hay red: así nunca se mezclan módulos JS de versiones distintas
+    // (un main.js nuevo con un supa.js viejo dejaba la app colgada en "cargando").
+    e.respondWith((async () => {
+      const cache = await caches.open(SHELL);
+      try {
+        const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 8000);
+        const r = await fetch(req, { signal: ctrl.signal }); clearTimeout(t);
+        if (r.ok) cache.put(req, r.clone());
+        return r;
+      } catch {
+        return (await cache.match(req)) || (await caches.match(req)) || Response.error();
+      }
+    })());
     return;
   }
   // Librería de Supabase (CDN) y fotos públicas: caché con actualización en segundo plano
-  if (url.hostname === 'cdn.jsdelivr.net' || url.pathname.startsWith('/storage/v1/object/public/')) {
+  if (['cdn.jsdelivr.net', 'esm.sh', 'unpkg.com'].includes(url.hostname) || url.pathname.startsWith('/storage/v1/object/public/')) {
     e.respondWith(caches.open(RUNTIME).then(async (c) => {
       const hit = await c.match(req);
       const net = fetch(req).then((r) => { if (r.ok || r.type === 'opaque') c.put(req, r.clone()); return r; }).catch(() => hit);

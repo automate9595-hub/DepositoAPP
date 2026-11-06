@@ -99,3 +99,27 @@ El workflow usa los archivos web ya preparados: no instala ni ejecuta Node.js en
 * Segundos administradores: para usar Clientes hay que tildar el permiso **Clientes y cuentas** en Usuarios.
 
 * **Datos del pedido**: cada pedido muestra su número, la **fecha**, la **hora** y el **proveedor** que lo realizó, tanto en las listas como en el detalle.
+
+
+## Novedades de la versión 4 (arranque robusto + nuevas funciones)
+
+**No requiere ejecutar ningún SQL nuevo.** Basta con subir los archivos a GitHub como siempre.
+
+### Corrección: la app se quedaba en la pantalla de carga / login
+* La librería de Supabase ahora se pide a 3 CDN (jsDelivr → esm.sh → unpkg) con tiempo límite; si una está bloqueada o lenta, usa la siguiente.
+* Se quitó el uso de `navigator.locks` en el cliente: un bloqueo huérfano (app cerrada a la fuerza en Android) dejaba colgado `getSession()` y el inicio de sesión.
+* Todas las peticiones tienen tiempo límite (20 s) y la lectura de sesión tiene plan B (sesión guardada en el teléfono).
+* El inicio de sesión arranca la app directamente, sin depender solo de un evento de la librería; se evita arrancar dos veces.
+* Si la sesión está vencida o corrupta, vuelve al login en lugar de quedarse esperando.
+* El service worker ahora usa "red primero" para los archivos de la app, para que nunca se mezclen archivos de versiones distintas.
+* **Guardián de arranque**: si en 15 s no aparece el login, se muestra una pantalla con *Reintentar* y *Reparar* (borra caché y sesión local).
+
+### Funciones nuevas
+* **Escáner de código de barras** (cámara) en Catálogo, Productos e Inventario, si el navegador lo soporta (Chrome en Android).
+* **Alertas de stock bajo**: pestaña *Stock bajo* en Inventario con contador, umbral configurable y aviso en cada producto.
+* **Exportar a Excel (CSV)**: pedidos (por estado), inventario, stock bajo y movimientos de stock.
+* **Compartir e imprimir pedido**: texto por WhatsApp/otras apps y remito imprimible con espacio para firmas.
+* **Repetir pedido** (proveedor): vuelve a cargar un pedido anterior en el carrito con precios y stock actuales.
+
+### Subida automática a GitHub
+`SUBIR_A_GITHUB_SIN_NODE.bat` ahora sube los archivos por sí solo (PowerShell + API de GitHub, sin Git ni Node.js), con barra de progreso, y muestra el estado de la publicación. Ver `LEEME_WINDOWS8.txt`.

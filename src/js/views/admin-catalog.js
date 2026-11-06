@@ -3,6 +3,12 @@ import { read, rpc, write, friendly } from '../api.js';
 import { esc, money, cleanSearch, debounce, one, toInt, dateTime } from '../format.js';
 import { $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal, img, icon, compressImage } from '../ui.js';
 import { can } from '../state.js';
+import { attachScanner, downloadCsv, fetchAll, stamp } from '../tools.js';
+import { parseLow } from '../export-utils.js';
+
+const LOW_KEY = 'deposito-low-stock';
+const getLow = () => { try { return parseLow(localStorage.getItem(LOW_KEY)); } catch { return parseLow(null); } };
+const setLow = (n) => { try { localStorage.setItem(LOW_KEY, String(n)); } catch { /* sin espacio */ } };
 
 const PAGE = 25;
 const costOf = (p) => Number(one(p?.product_costs)?.cost_price ?? 0);
@@ -18,6 +24,7 @@ export async function productsView(el) {
     <button class="btn sm block" id="cats">Administrar categorías</button>
     <div id="l" class="list"></div><button class="btn block hidden" id="more">Ver más</button></div>`;
   const list = $('#l', el); const more = $('#more', el);
+  attachScanner($('#q', el));
   async function load(reset) {
     const my = ++gen; if (reset) { page = 0; rows = []; list.innerHTML = spinner(); }
     try {
@@ -134,17 +141,28 @@ function categoriesForm(cats) {
 
 // ---------------- Inventario ----------------
 export async function inventoryView(el) {
-  let page = 0; let q = ''; let rows = []; let gen = 0; let tab = 'stock';
-  el.innerHTML = `<div class="stack"><div class="chips"><button class="chip on" data-t="stock">Stock</button><button class="chip" data-t="mov">Movimientos</button></div>
-    <input id="q" type="search" placeholder="Buscar producto o código" aria-label="Buscar"><div id="l" class="list"></div><button class="btn block hidden" id="more">Ver más</button></div>`;
+  let page = 0; let q = ''; let rows = []; let gen = 0; let tab = 'stock'; let low = getLow();
+  el.innerHTML = `<div class="stack"><div class="chips"><button class="chip on" data-t="stock">Stock</button><button class="chip" data-t="low" id="lowchip">Stock bajo</button><button class="chip" data-t="mov">Movimientos</button></div>
+    <input id="q" type="search" placeholder="Buscar producto o código" aria-label="Buscar">
+    <div class="lowbar hidden" id="lowbar"><label class="small muted" for="lowv">Considerar bajo cuando el disponible sea menor o igual a</label><input id="lowv" inputmode="numeric" value="${low}" aria-label="Umbral de stock bajo"></div>
+    ${can('inventory') || can('orders') ? `<button class="btn sm block" id="exp" type="button">${icon('download')} Exportar a Excel (CSV)</button>` : ''}
+    <div id="l" class="list"></div><button class="btn block hidden" id="more">Ver más</button></div>`;
   const list = $('#l', el); const more = $('#more', el);
+  attachScanner($('#q', el));
+  async function countLow() {
+    try {
+      const { count } = await read((s) => s.from('inventory').select('product_id,products!inner(active)', { count: 'exact', head: true }).eq('products.active', true).lte('available_stock', low));
+      $('#lowchip', el).textContent = count ? `⚠ Stock bajo (${count})` : 'Stock bajo';
+    } catch { /* el contador es opcional */ }
+  }
   async function load(reset) {
     const my = ++gen; if (reset) { page = 0; rows = []; list.innerHTML = spinner(); }
     try {
       const t = cleanSearch(q);
       const { data } = await read((s) => {
-        if (tab === 'stock') {
-          let b = s.from('inventory').select('product_id,physical_stock,reserved_stock,available_stock,products!inner(code,name,active)').order('products(name)').range(page * PAGE, page * PAGE + PAGE - 1);
+        if (tab === 'stock' || tab === 'low') {
+          let b = s.from('inventory').select('product_id,physical_stock,reserved_stock,available_stock,products!inner(code,name,active)').range(page * PAGE, page * PAGE + PAGE - 1);
+          b = tab === 'low' ? b.eq('products.active', true).lte('available_stock', low).order('available_stock', { ascending: true }).order('products(name)') : b.order('products(name)');
           if (t) b = b.or(`name.ilike.%${t}%,code.ilike.%${t}%`, { referencedTable: 'products' });
           return b;
         }
@@ -154,25 +172,46 @@ export async function inventoryView(el) {
       });
       if (my !== gen) return;
       rows = rows.concat(data || []); more.classList.toggle('hidden', (data || []).length < PAGE);
-      list.innerHTML = rows.length ? rows.map(tab === 'stock' ? stockCard : movCard).join('') : emptyBox('Sin resultados.');
+      list.innerHTML = rows.length ? rows.map(tab === 'mov' ? movCard : stockCard).join('') : emptyBox(tab === 'low' ? 'Ningún producto activo con stock bajo.' : 'Sin resultados.');
+      if (reset) countLow();
     } catch (e) { if (my === gen) { list.innerHTML = errorBox(friendly(e)); $('[data-retry]', list)?.addEventListener('click', () => load(true)); } }
   }
   const stockCard = (r) => { const p = one(r.products); return `<div class="card click" data-id="${r.product_id}"><div class="row between"><b class="ellipsis">${esc(p.name)}</b>${p.active ? '' : '<span class="status s-idle">Inactivo</span>'}</div>
     <div class="muted small">${esc(p.code)}</div><div class="row between mono small" style="margin-top:6px"><span>Físico <b>${r.physical_stock}</b></span><span>Reservado <b>${r.reserved_stock}</b></span>
-    <span>Disponible <b style="color:${r.available_stock > 0 ? 'var(--ok)' : 'var(--bad)'}">${r.available_stock}</b></span></div></div>`; };
+    <span>Disponible <b style="color:${r.available_stock <= 0 ? 'var(--bad)' : r.available_stock <= low ? 'var(--warn)' : 'var(--ok)'}">${r.available_stock}</b></span></div>
+    ${p.active && r.available_stock <= low ? `<div class="small" style="color:${r.available_stock <= 0 ? 'var(--bad)' : 'var(--warn)'};margin-top:4px">${icon('alert')} ${r.available_stock <= 0 ? 'Sin stock: reponer' : 'Stock bajo: conviene reponer'}</div>` : ''}</div>`; };
   const TYPE = { INGRESO: 'Ingreso', AJUSTE: 'Ajuste', RESERVA: 'Reserva', LIBERACION: 'Liberación', ENTREGA: 'Entrega' };
   const movCard = (m) => { const p = one(m.products); return `<div class="card"><div class="row between"><b class="ellipsis">${esc(p.name)}</b><span class="status s-info">${TYPE[m.movement_type]}</span></div>
     <div class="row between small"><span class="mono"><b>${m.quantity > 0 ? '+' : ''}${m.quantity}</b> u. · físico ${m.physical_after} · reserv. ${m.reserved_after}</span></div>
     <div class="muted small">${dateTime(m.created_at)} · ${esc(one(m.profiles)?.full_name || 'Sistema')}${m.note ? ' · ' + esc(m.note) : ''}</div></div>`; };
 
   el.addEventListener('click', async (e) => {
-    const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; $$('[data-t]', el).forEach((c) => c.classList.toggle('on', c === t)); load(true); return; }
+    const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; $$('[data-t]', el).forEach((c) => c.classList.toggle('on', c === t)); $('#lowbar', el).classList.toggle('hidden', tab !== 'low'); load(true); return; }
+    if (e.target.closest('#exp')) { exportCsv(e.target.closest('#exp')); return; }
     if (e.target === more) { page += 1; load(false); return; }
-    const c = e.target.closest('[data-id]'); if (!c || tab !== 'stock') return;
+    const c = e.target.closest('[data-id]'); if (!c || tab === 'mov') return;
     const r = rows.find((x) => x.product_id === c.dataset.id);
     if (r && can('inventory') && await stockForm(r)) load(true);
   });
   $('#q', el).addEventListener('input', debounce((e) => { q = e.target.value; load(true); }, 400));
+  $('#lowv', el).addEventListener('change', (e) => { low = parseLow(e.target.value); e.target.value = low; setLow(low); load(true); });
+  async function exportCsv(btn) {
+    await busy(btn, async () => {
+      try {
+        const t = cleanSearch(q);
+        if (tab === 'mov') {
+          const all = await fetchAll((a, b) => read((s) => { let r = s.from('stock_movements').select('created_at,movement_type,quantity,physical_after,reserved_after,note,products!inner(code,name),profiles(full_name)').order('created_at', { ascending: false }).range(a, b); if (t) r = r.or(`name.ilike.%${t}%,code.ilike.%${t}%`, { referencedTable: 'products' }); return r; }), { max: 20000 });
+          downloadCsv(`movimientos-${stamp()}.csv`, ['Fecha', 'Código', 'Producto', 'Tipo', 'Cantidad', 'Físico luego', 'Reservado luego', 'Usuario', 'Nota'],
+            all.map((m) => [dateTime(m.created_at), one(m.products)?.code, one(m.products)?.name, TYPE[m.movement_type] || m.movement_type, m.quantity, m.physical_after, m.reserved_after, one(m.profiles)?.full_name || 'Sistema', m.note || '']));
+          ok(`Se exportaron ${all.length} movimientos`); return;
+        }
+        const all = await fetchAll((a, b) => read((s) => { let r = s.from('inventory').select('physical_stock,reserved_stock,available_stock,products!inner(code,name,active)').order('products(name)').range(a, b); if (tab === 'low') r = r.eq('products.active', true).lte('available_stock', low); if (t) r = r.or(`name.ilike.%${t}%,code.ilike.%${t}%`, { referencedTable: 'products' }); return r; }));
+        downloadCsv(`${tab === 'low' ? 'stock-bajo' : 'inventario'}-${stamp()}.csv`, ['Código', 'Producto', 'Activo', 'Físico', 'Reservado', 'Disponible'],
+          all.map((r) => [one(r.products)?.code, one(r.products)?.name, one(r.products)?.active ? 'Sí' : 'No', r.physical_stock, r.reserved_stock, r.available_stock]));
+        ok(`Se exportaron ${all.length} productos`);
+      } catch (x) { fail(friendly(x)); }
+    });
+  }
   await load(true);
   return { refresh: (k) => { if (k.includes('inventory') || k.includes('resync')) load(true); }, dispose: () => { gen++; } };
 }

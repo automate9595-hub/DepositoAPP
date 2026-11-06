@@ -1,28 +1,15 @@
 @echo off
 setlocal
-chcp 65001 >nul
-title DepositoAPP - Subir a GitHub sin Node.js
+title DepositoAPP - Subir a GitHub
 cd /d "%~dp0"
-echo ==================================================
-echo   DEPOSITOAPP - PUBLICACION SIN NODE.JS
-echo ==================================================
-echo.
-echo La aplicacion ya esta preparada en la carpeta docs.
-echo Este proceso NO necesita Node.js ni Git en Windows.
-echo.
-if not exist "docs\index.html" (
-  echo ERROR: No se encuentra docs\index.html.
+if not exist "scripts\subir.ps1" (
+  echo ERROR: No se encuentra scripts\subir.ps1. Descomprima el ZIP completo.
   pause
   exit /b 1
 )
-echo Se abrira la carpeta del proyecto y el repositorio de GitHub.
-echo En GitHub, suba TODO el contenido de esta carpeta y pulse Commit changes.
-echo El workflow publicara automaticamente la carpeta docs.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\subir.ps1"
+set "RC=%ERRORLEVEL%"
 echo.
-start "" explorer "%~dp0"
-start "" "https://github.com/automate9595-hub/DepositoAPP"
-echo.
-echo IMPORTANTE: En GitHub, Settings ^> Pages, seleccione
-echo Source: GitHub Actions. Esto se hace una sola vez.
-echo Luego revise la pestana Actions para ver la publicacion.
+if not "%RC%"=="0" echo Si el problema persiste, copie el mensaje de ERROR y envielo para revisarlo.
 pause
+exit /b %RC%

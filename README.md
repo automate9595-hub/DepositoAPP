@@ -123,3 +123,16 @@ El workflow usa los archivos web ya preparados: no instala ni ejecuta Node.js en
 
 ### Subida automática a GitHub
 `SUBIR_A_GITHUB_SIN_NODE.bat` ahora sube los archivos por sí solo (PowerShell + API de GitHub, sin Git ni Node.js), con barra de progreso, y muestra el estado de la publicación. Ver `LEEME_WINDOWS8.txt`.
+
+## Respaldos automáticos en Supabase (archivos incluidos)
+
+La carpeta `supabase/` incluye los dos SQL solicitados:
+
+1. `supabase/07_respaldos.sql`: crea la configuración e historial de respaldos, el bucket privado `database-backups` y la función SQL que prepara el snapshot. Ejecutarlo **una sola vez después de `supabase/instalar_todo.sql`** desde Supabase → SQL Editor.
+2. `supabase/08_programar_respaldos.sql`: configura `pg_cron` + `pg_net` para llamar periódicamente al respaldo. Ejecutarlo **después de desplegar** la Edge Function `deposito-backup` y de guardar en Supabase Vault los secretos indicados al comienzo del archivo. Reemplazar las URL y claves de ejemplo por las del propio proyecto; nunca subir la `service_role` a GitHub ni a la aplicación.
+
+La función que debe desplegarse también está incluida en `supabase/functions/deposito-backup/index.ts`. Desde una terminal con Supabase CLI vinculada al proyecto, ejecutar `supabase functions deploy deposito-backup`. Supabase proporciona `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` como secretos de entorno de la función; no agregarlos al frontend. La función rechaza invocaciones que no lleven la autorización interna esperada.
+
+**Orden resumido:** instalar la base (`instalar_todo.sql`) → ejecutar `07_respaldos.sql` → desplegar `deposito-backup` → crear los dos secretos de Vault indicados en `08_programar_respaldos.sql` → ejecutar `08_programar_respaldos.sql`. Luego comprobar el job desde SQL Editor con la consulta comentada al final de `08_programar_respaldos.sql`.
+
+Nota: estos dos scripts habilitan la infraestructura de respaldo automático de la base de datos. El snapshot SQL incluido contiene las tablas de negocio enumeradas en `backup_snapshot`; no exporta identidades ni contraseñas de Supabase Auth ni los objetos de fotografías del bucket de productos.

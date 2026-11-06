@@ -11,6 +11,7 @@ import { catalogView, cartView, supplierOrdersView } from './views/supplier.js';
 import { adminOrdersView } from './views/admin-orders.js';
 import { productsView, inventoryView } from './views/admin-catalog.js';
 import { usersView, auditView } from './views/admin-users.js';
+import { backupsView } from './views/backups.js';
 import { statsView } from './views/stats.js';
 import { customersView } from './views/customers.js';
 import { warehouseOrdersView } from './views/warehouse.js';
@@ -43,6 +44,7 @@ const NAV = {
     { path: 'usuarios', label: 'Usuarios', icon: 'users', render: usersView, perm: 'users' },
     { path: 'estadisticas', label: 'Estadísticas', icon: 'chart', render: statsView, perm: 'stats' },
     { path: 'auditoria', label: 'Auditoría', icon: 'shield', render: auditView, perm: 'audit' },
+    { path: 'respaldos', label: 'Respaldos', icon: 'download', render: backupsView, perm: 'audit' },
     { path: 'cuenta', label: 'Cuenta', icon: 'user', render: accountView },
   ],
 };

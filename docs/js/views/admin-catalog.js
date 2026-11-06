@@ -77,7 +77,7 @@ function productForm(p, cats) {
         $('#mg', ov).innerHTML = Number.isFinite(c) && Number.isFinite(v) && v > 0 ? `Ganancia por unidad: <b style="color:${v - c >= 0 ? 'var(--ok)' : 'var(--bad)'}">${money(v - c)}</b> · Margen sobre la venta: <b>${(((v - c) / v) * 100).toFixed(1)}%</b> · Recargo sobre el costo: <b>${c > 0 ? (((v - c) / c) * 100).toFixed(1) + '%' : '—'}</b>` : 'El costo solo lo ven los administradores.';
       };
       f.cost.addEventListener('input', margin); f.price.addEventListener('input', margin); margin();
-      f.photo.addEventListener('change', () => { const file = f.photo.files[0]; if (file) { $('#pv', ov).innerHTML = `<img class="ok" alt="" src="${URL.createObjectURL(file)}" style="width:100%;height:100%;object-fit:cover">`; } });
+      f.photo.addEventListener('change', () => { const file = f.photo.files[0]; if (file) { $('#pv', ov).innerHTML = `<img class="ok" alt="" src="${URL.createObjectURL(file)}" style="width:100%;height:100%;object-fit:contain;object-position:center;padding:3px">`; } });
       f.addEventListener('submit', async (e) => {
         e.preventDefault(); err.classList.add('hidden');
         const price = Number(String(f.price.value).replace(',', '.')); const cost = f.cost.value.trim() === '' ? 0 : Number(String(f.cost.value).replace(',', '.'));

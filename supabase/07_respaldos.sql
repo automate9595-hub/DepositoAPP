@@ -60,7 +60,7 @@ begin
     'roles','profiles','suppliers','warehouse_workers','categories','products','inventory',
     'orders','order_items','stock_reservations','stock_movements','order_transitions',
     'order_status_history','notifications','audit_logs','customers','customer_movements',
-    'product_costs','order_item_costs'
+    'product_costs','order_item_costs','order_payments','backup_settings','backup_runs'
   ] loop
     execute format('select coalesce(jsonb_agg(to_jsonb(x)), ''[]''::jsonb) from public.%I x', t) into rows_json;
     payload := payload || jsonb_build_object(t, rows_json);

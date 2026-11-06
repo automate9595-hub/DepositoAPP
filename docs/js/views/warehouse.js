@@ -3,6 +3,7 @@ import { esc, money, dateTime, one, toInt } from '../format.js';
 import { state } from '../state.js';
 import { $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal, confirmBox } from '../ui.js';
 import { fetchOrder, orderCard, historyHtml, summaryHtml } from './order-common.js';
+import { deliverOrder } from './delivery-flow.js';
 
 const TABS = [['todo', 'Por preparar', ['APROBADO']], ['curso', 'En preparación', ['EN_PREPARACION', 'PREPARADO_PARCIALMENTE']], ['listo', 'Listos', ['LISTO_PARA_ENTREGAR']]];
 
@@ -62,7 +63,7 @@ async function detail(el, ctx, id) {
     const run = (sel, fn) => $(sel, el)?.addEventListener('click', (e) => busy(e.currentTarget, async () => { try { await fn(); } catch (x) { fail(friendly(x)); await load(); } }));
     run('#st', async () => { await rpc('start_preparation', { p_order_id: id }); ok('Preparación iniciada'); await load(); });
     run('#fin', async () => { await rpc('finish_preparation', { p_order_id: id }); ok('Pedido listo para entregar'); await load(); });
-    run('#dl', async () => { if (!(await confirmBox('Confirmar entrega', 'Se descontará del stock lo realmente preparado.', { okText: 'Entregado' }))) return; await rpc('confirm_delivery', { p_order_id: id }); ok('Entrega confirmada'); await load(); });
+    run('#dl', async () => { if (await deliverOrder(o)) { ok('Entrega y cobro registrados correctamente'); await load(); } });
     $$('[data-item]', el).forEach((row) => {
       const iid = row.dataset.item; const ap = toInt(row.dataset.ap);
       $('[data-full]', row)?.addEventListener('click', (e) => busy(e.currentTarget, async () => { try { await rpc('report_item', { p_item_id: iid, p_qty: ap }); await load(); } catch (x) { fail(friendly(x)); await load(); } }));

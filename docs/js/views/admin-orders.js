@@ -5,6 +5,7 @@ import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner, confirmBox, a
 import { state } from '../state.js';
 import { fetchOrder, orderCard, historyHtml, summaryHtml, totals } from './order-common.js';
 import { pickProducts } from './product-picker.js';
+import { deliverOrder } from './delivery-flow.js';
 import { can } from '../state.js';
 
 const PAGE = 20;
@@ -119,7 +120,7 @@ async function detail(el, ctx, id) {
       catch (x) { fail(friendly(x)); }
     });
     run('#md', async () => { await rpc('modify_approved_order', { p_order_id: id, p_items: items(), p_notes: obs() }); ok('Cantidades y reservas actualizadas'); await load(); });
-    run('#dl', async () => { if (!(await confirmBox('Confirmar entrega', 'Se descontará del stock físico lo preparado y se liberará el resto de la reserva.', { okText: 'Confirmar entrega' }))) return; await rpc('confirm_delivery', { p_order_id: id }); ok('Entrega confirmada'); await load(); });
+    run('#dl', async () => { if (await deliverOrder(o)) { ok('Entrega y cobro registrados correctamente'); await load(); } });
     run('#cx', async () => { const r = await askText('Cancelar pedido', 'Motivo (opcional)', { required: false, okText: 'Cancelar pedido' }); if (r === null) return; await rpc('cancel_order', { p_order_id: id, p_reason: r || null }); ok('Pedido cancelado y reservas liberadas'); await load(); });
     run('#as', async () => {
       const canPrep = true;

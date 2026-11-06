@@ -57,6 +57,30 @@ Deno.serve(async (req) => {
     const snapText = await snapRes.text();
     if (!snapRes.ok) throw new Error(`Snapshot ${snapRes.status}: ${snapText.slice(0, 500)}`);
     const snapshot = JSON.parse(snapText);
+    // Incluir todas las fotografías originales del bucket product-photos.
+    const photoFiles: Array<{path:string;content_type:string;base64:string}> = [];
+    const walkPhotos = async (prefix = ''): Promise<void> => {
+      let offset = 0;
+      for (;;) {
+        const listed = await storage('object/list/product-photos', { method: 'POST', body: JSON.stringify({ prefix, limit: 100, offset, sortBy: { column: 'name', order: 'asc' } }) });
+        if (!Array.isArray(listed) || listed.length === 0) break;
+        for (const item of listed) {
+          const path = prefix ? `${prefix}/${item.name}` : item.name;
+          if (item.id == null) { await walkPhotos(path); continue; }
+          if (item.name === '.emptyFolderPlaceholder') continue;
+          const r = await fetch(`${url}/storage/v1/object/product-photos/${path.split('/').map(encodeURIComponent).join('/')}`, { headers: { apikey: key, authorization: `Bearer ${key}` } });
+          if (!r.ok) throw new Error(`No se pudo respaldar fotografía ${path}: ${r.status}`);
+          const buf = new Uint8Array(await r.arrayBuffer());
+          let binary = ''; for (let i = 0; i < buf.length; i += 0x8000) binary += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+          photoFiles.push({ path, content_type: r.headers.get('content-type') || 'image/jpeg', base64: btoa(binary) });
+        }
+        if (listed.length < 100) break;
+        offset += listed.length;
+      }
+    };
+    await walkPhotos();
+    snapshot.storage = { bucket: 'product-photos', files: photoFiles };
+    snapshot.notes = { ...(snapshot.notes || {}), storage_product_photos_included: true };
     const bytes = new TextEncoder().encode(JSON.stringify(snapshot));
     const stamp = now.toISOString().replace(/[:.]/g, '-');
     const path = `${now.getUTCFullYear()}/${String(now.getUTCMonth()+1).padStart(2,'0')}/deposito-${stamp}.json`;

@@ -136,3 +136,19 @@ La función que debe desplegarse también está incluida en `supabase/functions/
 **Orden resumido:** instalar la base (`instalar_todo.sql`) → ejecutar `07_respaldos.sql` → desplegar `deposito-backup` → crear los dos secretos de Vault indicados en `08_programar_respaldos.sql` → ejecutar `08_programar_respaldos.sql`. Luego comprobar el job desde SQL Editor con la consulta comentada al final de `08_programar_respaldos.sql`.
 
 Nota: estos dos scripts habilitan la infraestructura de respaldo automático de la base de datos. El snapshot SQL incluido contiene las tablas de negocio enumeradas en `backup_snapshot`; no exporta identidades ni contraseñas de Supabase Auth ni los objetos de fotografías del bucket de productos.
+
+
+## Respaldo integral y cobro al entregar (actualización)
+
+Después de ejecutar la instalación principal y `supabase/07_respaldos.sql`, ejecutar también `supabase/09_respaldos_y_cobros.sql` en el SQL Editor de Supabase. Esta migración agrega una lectura segura para el respaldo de tablas protegidas (incluidos `order_item_costs`), conserva los pagos por pedido y crea el procedimiento transaccional de entrega con cobro.
+
+Para activar el respaldo automático:
+1. Ejecutar `supabase/07_respaldos.sql` y `supabase/09_respaldos_y_cobros.sql`.
+2. Desplegar `supabase/functions/deposito-backup` como Edge Function `deposito-backup`.
+3. Guardar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` en Supabase Vault con los nombres que indica `supabase/08_programar_respaldos.sql`.
+4. Ejecutar `supabase/08_programar_respaldos.sql` una sola vez.
+5. En Administración > Respaldos, configurar frecuencia, hora, retención y modalidad de descarga.
+
+La Edge Function genera el JSON con las tablas de negocio y los archivos del bucket privado `product-photos`. Los respaldos automáticos se guardan en el bucket privado `database-backups`. La exportación de usuarios no incluye contraseñas ni identidades de Supabase Auth.
+
+Al confirmar una entrega, el sistema permite cobrar ahora (monto y medio de pago) o dejar el total a cuenta corriente. Si se registra un pago parcial a un cliente con cuenta, el resto queda pendiente. El registro de entrega, cargo y pago se ejecuta en una única transacción de base de datos.

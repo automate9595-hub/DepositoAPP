@@ -132,7 +132,7 @@ export async function passkeyLogin({ baseUrl, anonKey }) {
     try {
       res = await fetch(`${baseUrl}/functions/v1/deposito-passkey`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: anonKey, Authorization: `Bearer ${anonKey}` }, body: JSON.stringify(body) });
     } catch (e) {
-      throw Object.assign(new Error('No se pudo comunicar con la función «deposito-passkey». Revise que esté publicada y que «Verify JWT» esté desactivado.'), { step, net: true, name: 'ErrorDeRed' });
+      throw Object.assign(new Error(`No se pudo comunicar con la función «deposito-passkey». Abra ${baseUrl}/functions/v1/deposito-passkey en el navegador: debe mostrar «ok». Si no, la función no está arrancando (pegue el archivo index.ts completo) o «Verify JWT» sigue activado.`), { step, net: true, name: 'ErrorDeRed' });
     }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(data?.error || data?.message || `Error ${res.status}`), { step, status: res.status });

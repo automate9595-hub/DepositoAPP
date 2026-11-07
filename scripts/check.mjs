@@ -99,11 +99,15 @@ if (!/\.env\b/.test(rd('.gitignore'))) fail('.gitignore debe excluir .env');
   if (!rd('src/index.html').includes('__CSP__')) fail('src/index.html: falta el marcador __CSP__ de la política de seguridad');
 }
 
-// 5c. El verificador de huella del servidor debe ser idéntico al de la app
+// 5c. El verificador de huella del servidor (verify.js y el index.ts de un solo archivo) debe ser idéntico al de la app
 {
-  const cut = (t) => t.slice(t.indexOf('// ---------- Utilidades puras'), t.indexOf('// ---------- Registro local'));
-  const a = cut(rd('src/js/bio.js')).trim(); const b = rd('supabase/functions/deposito-passkey/verify.js'); 
-  if (!b.includes(a.split('\n').slice(1).join('\n').trim())) fail('supabase/functions/deposito-passkey/verify.js se desincronizó de src/js/bio.js');
+  const cut = (t) => t.slice(t.indexOf('// ---------- Utilidades puras'), t.indexOf('// ---------- Registro local')).replace(/^\/\/ -+ Utilidades puras.*\n/, '').trim();
+  const app = cut(rd('src/js/bio.js'));
+  const v = rd('supabase/functions/deposito-passkey/verify.js');
+  const idx = rd('supabase/functions/deposito-passkey/index.ts').replace(/export /g, '');
+  if (!v.includes(app)) fail('supabase/functions/deposito-passkey/verify.js se desincronizó de src/js/bio.js');
+  if (!idx.includes(app.replace(/export /g, ''))) fail('supabase/functions/deposito-passkey/index.ts se desincronizó de src/js/bio.js');
+  if (/from\s+['"]\.\/verify\.js['"]/.test(idx)) fail('index.ts no debe importar verify.js (debe ser un solo archivo)');
 }
 
 // 6. Pruebas unitarias

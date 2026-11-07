@@ -1,12 +1,12 @@
 /* Service worker: shell de la app en caché; los datos de Supabase NUNCA se cachean. */
-const VERSION = 'b1711aa7f6';
+const VERSION = 'da2ba2fb9e';
 const SHELL = 'shell-' + VERSION;
 const RUNTIME = 'runtime-v1';
 const ASSETS = [
  "./",
  "./index.html",
  "./manifest.webmanifest",
- "./css/app.css?v=b1711aa7f6",
+ "./css/app.css?v=da2ba2fb9e",
  "./icons/icon-192.png",
  "./icons/icon-512.png",
  "./icons/icon-maskable-512.png",
@@ -18,7 +18,7 @@ const ASSETS = [
  "./js/charts.js",
  "./js/export-utils.js",
  "./js/format.js",
- "./js/main.js?v=b1711aa7f6",
+ "./js/main.js?v=da2ba2fb9e",
  "./js/sound.js",
  "./js/state.js",
  "./js/stats-utils.js",

@@ -5,7 +5,7 @@ import { esc, dateTime, roleLabel } from '../format.js';
 import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner } from '../ui.js';
 import { themePref, setTheme } from '../theme.js';
 import { soundEnabled, setSound, previewSound } from '../sound.js';
-import { bioSupported, bioEnabled, bioEnable, bioDisable, bioVerify } from '../bio.js';
+import { bioSupported, bioEnabled, bioEnable, bioDisable, bioVerify, bioLockMinutes, setBioLockMinutes, LOCK_CHOICES } from '../bio.js';
 
 const APP_VERSION = (() => { try { return new URL(import.meta.url).searchParams.get('v') || ''; } catch { return ''; } })();
 
@@ -62,8 +62,9 @@ export async function accountView(el) {
     }
     const on = bioEnabled(p.id);
     box.innerHTML = `<h3>${icon('fingerprint')} Acceso con huella o rostro</h3>
-      <p class="muted small">${on ? 'Activado en este dispositivo: al abrir la app se pide huella o rostro. También se pide al volver tras 2 minutos fuera.' : 'Entre más rápido y seguro: el teléfono verifica su huella o su rostro con el sensor o la cámara del dispositivo. La aplicación nunca recibe su cara ni su huella.'}</p>
-      ${on ? `<div class="row"><button type="button" class="btn grow" id="bt">Probar ahora</button><button type="button" class="btn danger grow" id="bd">Desactivar</button></div>`
+      <p class="muted small">${on ? 'Activado en este dispositivo: se pide huella o rostro si estuvo fuera de la aplicación más del tiempo elegido.' : 'Entre más rápido y seguro: el teléfono verifica su huella o su rostro con el sensor o la cámara del dispositivo. La aplicación nunca recibe su cara ni su huella.'}</p>
+      ${on ? `<label class="field"><span>Volver a pedir la huella después de</span><select id="bm">${LOCK_CHOICES.map((m) => `<option value="${m}" ${m === bioLockMinutes() ? 'selected' : ''}>${m} minutos fuera de la aplicación</option>`).join('')}</select></label>
+        <div class="row"><button type="button" class="btn grow" id="bt">Probar ahora</button><button type="button" class="btn danger grow" id="bd">Desactivar</button></div>`
            : `<button type="button" class="btn primary block" id="be">${icon('fingerprint')} Activar en este dispositivo</button>`}
       <p class="muted small">Al tocar «Cerrar sesión», la cuenta queda bloqueada y en la pantalla de ingreso aparece «Ingresar con huella o rostro». Allí también puede elegir «Usar otra cuenta o contraseña» para cerrar la sesión por completo. Cada dispositivo se activa por separado.</p>`;
     $('#be', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
@@ -74,6 +75,7 @@ export async function accountView(el) {
     $('#bt', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
       try { await bioVerify(p.id); ok('Verificación correcta'); } catch (x) { fail(x?.name === 'NotAllowedError' ? 'Se canceló la verificación.' : 'No se pudo verificar la identidad.'); }
     }));
+    $('#bm', box)?.addEventListener('change', (e) => { setBioLockMinutes(Number(e.target.value)); ok(`Se pedirá la huella tras ${e.target.value} minutos fuera de la aplicación`); });
     $('#bd', box)?.addEventListener('click', () => { bioDisable(p.id); ok('Acceso biométrico desactivado'); renderBio(); });
   }
   $('#pf', el).addEventListener('submit', async (e) => {

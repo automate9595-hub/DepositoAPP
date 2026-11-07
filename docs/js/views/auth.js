@@ -3,7 +3,7 @@ import { friendly } from '../api.js';
 import { bus } from '../state.js';
 import { esc } from '../format.js';
 import { icon, logoSvg, $, busy, themeButton } from '../ui.js';
-import { bioEnabled, bioSupported, bioVerify } from '../bio.js';
+import { bioEnabled, bioSupported, bioVerify, bioAccounts } from '../bio.js';
 
 const ready = () => { window.__appReady = true; };
 const brand = `<div class="brand"><div class="logo">${logoSvg}</div><div><b>Depósito</b><div class="muted small">Gestión de stock y pedidos</div></div></div>`;
@@ -74,7 +74,17 @@ async function showBioLogin(app) {
     if (!supabase || !(await bioSupported())) return;
     const { data } = await supabase.auth.getSession();
     const uid = data?.session?.user?.id;
-    if (!uid || !bioEnabled(uid) || !$('#f', app)) return;
+    if (!$('#f', app)) return;
+    if (!uid || !bioEnabled(uid)) {
+      // Hay huella activada en este dispositivo pero la sesión ya se cerró del todo: se explica qué hacer
+      const acc = bioAccounts()[0];
+      if (acc) {
+        const hint = document.createElement('p'); hint.className = 'notice small'; hint.style.textAlign = 'left';
+        hint.innerHTML = `${icon('fingerprint')} Huella activada${acc.email ? ' para <b>' + esc(acc.email) + '</b>' : ''}. Ingrese una vez con su contraseña; después, al tocar «Cerrar sesión», podrá volver a entrar con la huella.`;
+        $('#f', app).before(hint);
+      }
+      return;
+    }
     const box = document.createElement('div');
     box.className = 'card stack biologin';
     box.innerHTML = `<button type="button" class="lockbtn" id="bl" aria-label="Ingresar con huella o rostro">${icon('fingerprint')}</button>

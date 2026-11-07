@@ -61,6 +61,19 @@ export async function verifyAssertion({ spki, alg, authData, clientDataJSON, sig
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { return {}; } };
 const save = (o) => { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch { /* sin espacio */ } };
 export const bioEnabled = (uid) => !!load()[uid];
+// Cuenta(s) con huella activada en este dispositivo: [{ uid, email }]
+export const bioAccounts = () => Object.entries(load()).map(([uid, r]) => ({ uid, email: r.email || '' }));
+
+// Cuánto tiempo fuera de la aplicación antes de volver a pedir huella o rostro (minutos)
+export const LOCK_CHOICES = [5, 10, 15, 30, 60];
+export function bioLockMinutes() { const n = Number(localStorage.getItem('deposito-bio-min')); return LOCK_CHOICES.includes(n) ? n : 10; }
+export function setBioLockMinutes(n) { try { localStorage.setItem('deposito-bio-min', String(n)); } catch { /* sin espacio */ } }
+// Última vez que la persona estuvo usando la app (para no pedir la huella si volvió enseguida)
+export function touchActive() { try { localStorage.setItem('deposito-bio-active', String(Date.now())); } catch { /* sin espacio */ } }
+export function recentlyActive() { const t = Number(localStorage.getItem('deposito-bio-active') || 0); return t > 0 && Date.now() - t < bioLockMinutes() * 60 * 1000; }
+// «Cerrar sesión» con huella activada solo bloquea: la marca sobrevive al cierre de la app
+export const softLockGet = () => localStorage.getItem('deposito-bio-soft') === '1';
+export function softLockSet(on) { try { if (on) localStorage.setItem('deposito-bio-soft', '1'); else localStorage.removeItem('deposito-bio-soft'); } catch { /* sin espacio */ } }
 export function bioDisable(uid) { const o = load(); delete o[uid]; save(o); }
 
 export async function bioSupported() {
@@ -82,7 +95,7 @@ export async function bioEnable(user) {
   const r = cred?.response; const spki = r?.getPublicKey?.();
   if (!spki) throw new Error('Este dispositivo no permite guardar la clave de acceso. Actualice el navegador.');
   const o = load();
-  o[user.id] = { id: b64u(cred.rawId), spki: b64u(spki), alg: r.getPublicKeyAlgorithm?.() ?? -7, at: new Date().toISOString(), fails: 0 };
+  o[user.id] = { email: user.email || '', id: b64u(cred.rawId), spki: b64u(spki), alg: r.getPublicKeyAlgorithm?.() ?? -7, at: new Date().toISOString(), fails: 0 };
   save(o);
   try { await bioVerify(user.id); } catch (e) { bioDisable(user.id); throw e; }   // prueba inmediata: si no funciona, no se deja activado
 }

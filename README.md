@@ -184,3 +184,5 @@ Desde **Administración › Respaldos › Importar** se puede volver a cargar el
 * **Imágenes**: siempre centradas y completas con el mismo encuadre; las fotos del celular se enderezan solas.
 * **Acceso con huella o rostro**: Mi cuenta › Acceso con huella o rostro. Requiere https y bloqueo de pantalla en el dispositivo.
 * **Seguridad**: ver `AUDITORIA_SEGURIDAD.md`.
+
+**Huella: tiempo de bloqueo.** Mi cuenta › Acceso con huella o rostro › «Volver a pedir la huella después de» (5, 10, 15, 30 o 60 minutos; por defecto 10). Aplica al volver a la app y también al abrirla de nuevo: si estuvo menos de ese tiempo fuera, no la vuelve a pedir.

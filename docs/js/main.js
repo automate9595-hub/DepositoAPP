@@ -2,7 +2,7 @@ import { supabase, configured, config, libError, storedSession, withTimeout } fr
 import { state, bus, initCart, cacheProfile, cachedProfile, clearProfileCache, role, can } from './state.js';
 import { setLocale, esc } from './format.js';
 import { icon, logoSvg, $, $$, toast, toastAction, notify, errorBox, spinner, themeButton, soundButton, initEffects } from './ui.js';
-import { bioEnabled, bioLock } from './bio.js';
+import { bioEnabled, bioLock, recentlyActive, touchActive, softLockGet, softLockSet } from './bio.js';
 import { initTheme } from './theme.js';
 import { soundEnabled, soundChoiceMade, setSound, playSound, kindFor } from './sound.js';
 import { friendly, read } from './api.js';
@@ -20,7 +20,7 @@ import { cartLines } from './cart.js';
 
 const app = document.getElementById('app');
 initTheme(); initEffects();
-let current = null; let navSeq = 0; let channel = null; let wasDown = false; let started = null; let hiddenAt = 0; let unlockedUid = null; let softLocked = false;
+let current = null; let navSeq = 0; let channel = null; let wasDown = false; let started = null; let hiddenAt = 0; let unlockedUid = null; let softLocked = softLockGet();
 const pendingKinds = new Set();
 
 // ---------- Rutas por rol ----------
@@ -204,8 +204,8 @@ function resync() { refreshUnread(); pendingKinds.add('resync'); flushRefresh();
 window.addEventListener('online', () => { setConn('warn'); wasDown = true; resync(); });
 window.addEventListener('offline', () => { wasDown = true; setConn('off'); });
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { hiddenAt = Date.now(); return; }
-  if (state.profile && bioEnabled(state.profile.id) && Date.now() - hiddenAt > LOCK_AFTER_MS) lockFor(state.profile);
+  if (document.hidden) { hiddenAt = Date.now(); if (state.profile) touchActive(); return; }
+  if (state.profile && bioEnabled(state.profile.id) && !recentlyActive()) lockFor(state.profile);
   if (state.profile && Date.now() - hiddenAt > 20000) resync();
 });
 
@@ -229,14 +229,16 @@ function startSession(session) {
   return starting;
 }
 const AUTH_RE = /jwt|invalid.*token|refresh token|not authenticated|401/i;
-const LOCK_AFTER_MS = 2 * 60 * 1000;   // al volver a la app tras 2 minutos fuera, se pide huella o rostro de nuevo
 const lockFor = (user) => bioLock({ uid: user.id, label: user.email || '', icon, logoSvg, onPassword: () => logout() });
 async function doStartSession(session) {
   started = session.user.id;
   if (bioEnabled(session.user.id) && unlockedUid !== session.user.id) {   // acceso con huella o rostro activado en este dispositivo
-    const unlocked = await lockFor(session.user);
-    if (!unlocked) { started = null; return; }
-    unlockedUid = session.user.id;
+    if (recentlyActive()) unlockedUid = session.user.id;                   // volvió enseguida: no se pide de nuevo
+    else {
+      const unlocked = await lockFor(session.user);
+      if (!unlocked) { started = null; return; }
+      unlockedUid = session.user.id; touchActive();
+    }
   }
   state.user = session.user;
   let prof;
@@ -262,13 +264,13 @@ function offerSound() {
 }
 // «Salir» con huella o rostro activado: la sesión queda guardada pero bloqueada; se vuelve a entrar con la huella desde el login.
 function softLogout() {
-  stopRealtime(); started = null; unlockedUid = null; softLocked = true; current?.dispose?.(); current = null;
+  stopRealtime(); started = null; unlockedUid = null; softLocked = true; softLockSet(true); current?.dispose?.(); current = null;
   state.user = null; state.profile = null; state.unread = 0; clearProfileCache();
   location.hash = '';
   renderLogin(app);
 }
 async function logout() {
-  softLocked = false;
+  softLocked = false; softLockSet(false);
   stopRealtime(); started = null; unlockedUid = null; current?.dispose?.(); current = null;
   try { await supabase.auth.signOut(); } catch { /* sesión local se limpia igual */ }
   state.user = null; state.profile = null; state.unread = 0; clearProfileCache();
@@ -320,10 +322,12 @@ async function boot() {
     }, 0);
   });
   // Inicio de sesión directo desde el formulario (no depende solo del evento de la librería)
-  bus.on('login', (session) => { softLocked = false; unlockedUid = session?.user?.id || null; startSession(session); });   // entrar con contraseña ya es una verificación
+  bus.on('login', (session) => { softLocked = false; softLockSet(false); touchActive(); unlockedUid = session?.user?.id || null; startSession(session); });   // entrar con contraseña ya es una verificación
   let session = null;
   try { ({ data: { session } } = await withTimeout(supabase.auth.getSession(), 8000, 'timeout leyendo la sesión')); }
   catch { session = storedSession(); } // plan B: la sesión guardada en el teléfono
-  if (session) await startSession(session); else renderLogin(app);
+  window.addEventListener('pagehide', () => { if (state.profile) touchActive(); });
+  setInterval(() => { if (!document.hidden && state.profile) touchActive(); }, 15000);   // marca "estuvo usando la app"
+  if (session && !softLockGet()) await startSession(session); else renderLogin(app);
 }
 boot();

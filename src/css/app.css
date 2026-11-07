@@ -529,3 +529,7 @@ input:focus, select:focus, textarea:focus { background: var(--card); }
 .lockbtn.busy { opacity: .7; pointer-events: none; }
 @keyframes lockPulse { from { transform: scale(.92); opacity: .6; } to { transform: scale(1.22); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .lockbtn::after { animation: none; } }
+
+/* Ingreso con huella en el login */
+.biologin { text-align: center; justify-items: center; margin-bottom: 14px; padding: 22px 18px; }
+.biologin .lockbtn { width: 96px; height: 96px; } .biologin .lockbtn svg { width: 48px; height: 48px; }

@@ -20,7 +20,7 @@ import { cartLines } from './cart.js';
 
 const app = document.getElementById('app');
 initTheme(); initEffects();
-let current = null; let navSeq = 0; let channel = null; let wasDown = false; let started = null; let hiddenAt = 0; let unlockedUid = null;
+let current = null; let navSeq = 0; let channel = null; let wasDown = false; let started = null; let hiddenAt = 0; let unlockedUid = null; let softLocked = false;
 const pendingKinds = new Set();
 
 // ---------- Rutas por rol ----------
@@ -125,7 +125,8 @@ async function refreshUnread() {
 }
 bus.on('unread', (n) => { state.unread = Math.max(0, n); updateBell(); });
 bus.on('cart', renderNav);
-bus.on('logout', () => logout());
+bus.on('logout', () => { if (state.user && bioEnabled(state.user.id)) softLogout(); else logout(); });   // con huella activada, salir solo bloquea
+bus.on('fullLogout', () => logout());
 bus.on('refresh-unread', () => refreshUnread());
 
 // ---------- Enrutador ----------
@@ -259,7 +260,15 @@ function offerSound() {
   if (soundChoiceMade() || role() === 'proveedor') return;
   setTimeout(() => toastAction('¿Quiere escuchar un sonido cuando lleguen pedidos?', 'Activar', () => setSound(true)), 1500);
 }
+// «Salir» con huella o rostro activado: la sesión queda guardada pero bloqueada; se vuelve a entrar con la huella desde el login.
+function softLogout() {
+  stopRealtime(); started = null; unlockedUid = null; softLocked = true; current?.dispose?.(); current = null;
+  state.user = null; state.profile = null; state.unread = 0; clearProfileCache();
+  location.hash = '';
+  renderLogin(app);
+}
 async function logout() {
+  softLocked = false;
   stopRealtime(); started = null; unlockedUid = null; current?.dispose?.(); current = null;
   try { await supabase.auth.signOut(); } catch { /* sesión local se limpia igual */ }
   state.user = null; state.profile = null; state.unread = 0; clearProfileCache();
@@ -307,11 +316,11 @@ async function boot() {
     // No se llaman métodos de supabase dentro del callback (evita bloqueos): se difiere
     setTimeout(() => {
       if (evt === 'SIGNED_OUT' && state.user) { stopRealtime(); started = null; state.user = null; state.profile = null; renderLogin(app); }
-      else if (evt === 'SIGNED_IN' && session) startSession(session);
+      else if (evt === 'SIGNED_IN' && session && !softLocked) startSession(session);
     }, 0);
   });
   // Inicio de sesión directo desde el formulario (no depende solo del evento de la librería)
-  bus.on('login', (session) => { unlockedUid = session?.user?.id || null; startSession(session); });   // entrar con contraseña ya es una verificación
+  bus.on('login', (session) => { softLocked = false; unlockedUid = session?.user?.id || null; startSession(session); });   // entrar con contraseña ya es una verificación
   let session = null;
   try { ({ data: { session } } = await withTimeout(supabase.auth.getSession(), 8000, 'timeout leyendo la sesión')); }
   catch { session = storedSession(); } // plan B: la sesión guardada en el teléfono

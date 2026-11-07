@@ -3,6 +3,7 @@ import { friendly } from '../api.js';
 import { bus } from '../state.js';
 import { esc } from '../format.js';
 import { icon, logoSvg, $, busy, themeButton } from '../ui.js';
+import { bioEnabled, bioSupported, bioVerify } from '../bio.js';
 
 const ready = () => { window.__appReady = true; };
 const brand = `<div class="brand"><div class="logo">${logoSvg}</div><div><b>Depósito</b><div class="muted small">Gestión de stock y pedidos</div></div></div>`;
@@ -17,6 +18,7 @@ export function renderLogin(app) {
       <button class="btn primary block" type="submit">Ingresar</button>
     </form>
     <p class="muted small" style="margin-top:14px">Si no tiene cuenta, solicítela al administrador del depósito.</p></div>`;
+  showBioLogin(app);
   const f = $('#f', app);
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -64,4 +66,36 @@ export function renderSetupError(app) {
     <h2>Falta configurar Supabase</h2>
     <p class="notice bad">Esta publicación no tiene la URL y la clave pública de Supabase.</p>
     <p class="muted">Ejecute <b>publicar.bat</b> (o <code>npm run build</code> con las variables SUPABASE_URL y SUPABASE_ANON_KEY) y vuelva a publicar.</p></div></div>`;
+}
+
+// Si en este dispositivo hay una cuenta con huella o rostro activado y su sesión guardada, se ofrece entrar con eso.
+async function showBioLogin(app) {
+  try {
+    if (!supabase || !(await bioSupported())) return;
+    const { data } = await supabase.auth.getSession();
+    const uid = data?.session?.user?.id;
+    if (!uid || !bioEnabled(uid) || !$('#f', app)) return;
+    const box = document.createElement('div');
+    box.className = 'card stack biologin';
+    box.innerHTML = `<button type="button" class="lockbtn" id="bl" aria-label="Ingresar con huella o rostro">${icon('fingerprint')}</button>
+      <b>Ingresar con huella o rostro</b><p class="muted small ellipsis">${esc(data.session.user.email || '')}</p>
+      <p class="notice bad hidden" id="ble" role="alert"></p>
+      <button type="button" class="btn ghost block" id="bo">Usar otra cuenta o contraseña</button>`;
+    $('#f', app).before(box);
+    const err = $('#ble', box);
+    $('#bl', box).addEventListener('click', async (e) => {
+      const btn = e.currentTarget; if (btn.classList.contains('busy')) return;
+      btn.classList.add('busy'); err.classList.add('hidden');
+      try {
+        await bioVerify(uid);
+        const { data: d2 } = await supabase.auth.getSession();
+        if (!d2?.session) throw Object.assign(new Error('La sesión venció. Ingrese con su contraseña.'), { plain: true });
+        bus.emit('login', d2.session);
+      } catch (x) {
+        err.textContent = x?.plain ? x.message : (x?.name === 'NotAllowedError' ? 'Se canceló o no se pudo verificar. Vuelva a intentar.' : 'No se pudo verificar la identidad. Vuelva a intentar o use su contraseña.');
+        err.classList.remove('hidden');
+      } finally { btn.classList.remove('busy'); }
+    });
+    $('#bo', box).addEventListener('click', () => bus.emit('fullLogout'));
+  } catch { /* sin biometría: queda el ingreso normal */ }
 }

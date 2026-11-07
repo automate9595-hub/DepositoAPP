@@ -24,7 +24,7 @@ Revisión del código, de la base de datos (Supabase) y de los flujos de la apli
 
 ## Pendiente / límites conocidos (decisión tuya)
 - **Contraseñas**: Supabase exige 8 caracteres. Para más seguridad, en Supabase › Authentication › Policies subí el mínimo y activá la protección contra contraseñas filtradas.
-- **Acceso biométrico**: protege el uso de la sesión abierta en ese dispositivo (se verifica firma, desafío, sitio y verificación del usuario). No reemplaza la contraseña: si se cierra la sesión, se entra con contraseña. Para biometría como único método de ingreso haría falta un servidor propio de verificación.
+- **Acceso biométrico**: protege el uso de la sesión abierta en ese dispositivo (se verifica firma, desafío, sitio y verificación del usuario). Funciona sobre la sesión guardada en el dispositivo: «Cerrar sesión» la bloquea y se vuelve a entrar con huella o rostro; «Usar otra cuenta o contraseña» la cierra por completo. La primera vez, y cada vez que la sesión venza, se entra con contraseña. Para biometría como único método de ingreso desde cero haría falta un servidor propio de verificación.
 - **CDN de la librería de Supabase**: la app la descarga de jsDelivr/esm.sh/unpkg con versión fija. Para eliminar esa dependencia externa se puede copiar la librería dentro del proyecto.
 - **Límite de intentos de contraseña**: lo aplica Supabase Auth (activalo y ajustalo en Authentication › Rate limits).
 

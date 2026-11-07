@@ -171,7 +171,7 @@ begin
         if t = 'profiles' then
           delete from public.profiles where id is distinct from v_caller;   -- el administrador actual se conserva
         else
-          execute format('delete from public.%I', t);
+          execute format('delete from public.%I where true', t);   -- Supabase (pg_safeupdate) exige WHERE en todo DELETE
         end if;
       end loop;
     end if;

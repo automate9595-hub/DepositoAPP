@@ -65,7 +65,7 @@ export async function accountView(el) {
       <p class="muted small">${on ? 'Activado en este dispositivo: al abrir la app se pide huella o rostro. También se pide al volver tras 2 minutos fuera.' : 'Entre más rápido y seguro: el teléfono verifica su huella o su rostro con el sensor o la cámara del dispositivo. La aplicación nunca recibe su cara ni su huella.'}</p>
       ${on ? `<div class="row"><button type="button" class="btn grow" id="bt">Probar ahora</button><button type="button" class="btn danger grow" id="bd">Desactivar</button></div>`
            : `<button type="button" class="btn primary block" id="be">${icon('fingerprint')} Activar en este dispositivo</button>`}
-      <p class="muted small">Si cierra la sesión, volverá a entrar con su correo y contraseña. Cada dispositivo se activa por separado.</p>`;
+      <p class="muted small">Al tocar «Cerrar sesión», la cuenta queda bloqueada y en la pantalla de ingreso aparece «Ingresar con huella o rostro». Allí también puede elegir «Usar otra cuenta o contraseña» para cerrar la sesión por completo. Cada dispositivo se activa por separado.</p>`;
     $('#be', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
       try { await bioEnable({ id: p.id, email: p.email, full_name: p.full_name }); ok('Acceso biométrico activado'); }
       catch (x) { fail(x?.name === 'NotAllowedError' ? 'Se canceló la verificación. No se activó.' : (x?.message || 'No se pudo activar el acceso biométrico.')); }

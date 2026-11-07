@@ -2,10 +2,10 @@ import { supabase } from '../supa.js';
 import { state, bus } from '../state.js';
 import { read, rpc, friendly } from '../api.js';
 import { esc, dateTime, roleLabel } from '../format.js';
-import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner } from '../ui.js';
+import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal } from '../ui.js';
 import { themePref, setTheme } from '../theme.js';
 import { soundEnabled, setSound, previewSound } from '../sound.js';
-import { bioSupported, bioEnabled, bioEnable, bioDisable, bioVerify, bioLockMinutes, setBioLockMinutes, bioServerRegistered, bioCredId, LOCK_CHOICES } from '../bio.js';
+import { bioSupported, bioEnabled, bioEnable, bioDisable, bioVerify, bioLockMinutes, setBioLockMinutes, bioServerRegistered, bioCredId, passkeyLogin, errDetail, explainError, LOCK_CHOICES } from '../bio.js';
 import { config } from '../supa.js';
 
 const APP_VERSION = (() => { try { return new URL(import.meta.url).searchParams.get('v') || ''; } catch { return ''; } })();
@@ -52,6 +52,52 @@ export async function accountView(el) {
   const syncSw = () => $('#sw', el)?.setAttribute('aria-checked', String(soundEnabled()));
   document.addEventListener('soundchange', syncSw);
   $('#tst', el).addEventListener('click', () => { if (!previewSound('order')) fail('Este navegador no permite reproducir sonido.'); });
+  // Asistente visual: activa y prueba la huella paso a paso, mostrando qué anda bien y qué no
+  function wizard(mode) {
+    const base = String(config.SUPABASE_URL).replace(/\/+$/, '');
+    const steps = mode === 'enable'
+      ? ['Registrar su huella en este dispositivo', 'Guardar la clave en el sistema', 'Probar el ingreso completo']
+      : ['Verificar su huella en este dispositivo', 'Probar el ingreso completo con el servidor'];
+    const device = /Android/i.test(navigator.userAgent) ? 'Android' : /iPhone|iPad/i.test(navigator.userAgent) ? 'iPhone/iPad' : /Windows/i.test(navigator.userAgent) ? 'Windows' : /Mac/i.test(navigator.userAgent) ? 'Mac' : 'Dispositivo';
+    return modal(`<h2>${mode === 'enable' ? 'Activar la huella' : 'Probar la huella'}</h2>
+      <p class="muted small">Siga las indicaciones del teléfono cuando se lo pida. Cada paso se marca cuando termina.</p>
+      <ol class="wiz">${steps.map((t, i) => `<li data-i="${i}"><span class="wz-ico"></span><div class="grow"><b>${t}</b><p class="small muted"></p></div></li>`).join('')}</ol>
+      <div id="wz-end"></div><button type="button" class="btn block" data-close style="margin-top:14px">Cerrar</button>`, {
+      onMount: async (ov) => {
+        let cur = 0;
+        const mark = (i, st, msg = '') => {
+          const li = ov.querySelector(`[data-i="${i}"]`); if (!li) return; li.dataset.s = st; cur = i;
+          li.querySelector('.wz-ico').innerHTML = st === 'ok' ? icon('check') : st === 'bad' ? icon('x') : st === 'run' ? '<i class="wz-spin"></i>' : '';
+          li.querySelector('p').textContent = msg;
+        };
+        const end = (html) => { ov.querySelector('#wz-end').innerHTML = html; };
+        try {
+          if (mode === 'enable') {
+            mark(0, 'run', 'Le pedirá la huella o el rostro…');
+            await bioEnable({ id: p.id, email: p.email, full_name: p.full_name }, {
+              label: device,
+              register: (k) => rpc('register_passkey', { p_id: k.id, p_public_key: k.public_key, p_alg: k.alg, p_label: k.label }),
+              onStage: (st) => { if (st === 'verified') { mark(0, 'ok', 'Huella verificada'); mark(1, 'run', 'Guardando…'); } },
+            });
+            mark(1, 'ok', 'Registrada en el sistema');
+            mark(2, 'run', 'Vuelva a apoyar la huella para probar el ingreso…');
+          } else {
+            mark(0, 'run', 'Apoye la huella…'); await bioVerify(p.id); mark(0, 'ok', 'Huella verificada');
+            mark(1, 'run', 'Apoye la huella otra vez…');
+          }
+          await passkeyLogin({ baseUrl: base, anonKey: config.SUPABASE_ANON_KEY });   // solo prueba: no abre otra sesión
+          mark(mode === 'enable' ? 2 : 1, 'ok', 'Funciona');
+          end('<p class="notice ok">Todo funciona. En la pantalla de ingreso toque «Ingresar con huella o rostro».</p>');
+          renderBio();
+        } catch (x) {
+          mark(cur, 'bad', explainError(x));
+          end(`<p class="notice bad small">${esc(explainError(x))}<br><small class="muted">${esc(errDetail(x))}</small></p>`);
+          renderBio();
+        }
+      },
+    });
+  }
+
   renderBio();
   async function renderBio() {
     const box = $('#biocard', el); if (!box) return;
@@ -69,25 +115,8 @@ export async function accountView(el) {
         <div class="row"><button type="button" class="btn grow" id="bt">Probar ahora</button>${server ? '' : '<button type="button" class="btn primary grow" id="be">Reactivar</button>'}<button type="button" class="btn danger grow" id="bd">Desactivar</button></div>`
            : `<button type="button" class="btn primary block" id="be">${icon('fingerprint')} Activar en este dispositivo</button>`}
       <p class="muted small">Cada dispositivo se activa por separado. Si pierde el teléfono, desactive la huella desde otro dispositivo en esta misma pantalla.</p>`;
-    $('#be', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
-      try {
-        if (on) bioDisable(p.id);
-        await bioEnable({ id: p.id, email: p.email, full_name: p.full_name }, {
-          label: device,
-          register: (k) => rpc('register_passkey', { p_id: k.id, p_public_key: k.public_key, p_alg: k.alg, p_label: k.label }),
-        });
-        ok('Huella activada y registrada');
-        // Comprueba que la función del servidor esté publicada
-        try {
-          const r = await fetch(`${String(config.SUPABASE_URL).replace(/\/+$/, '')}/functions/v1/deposito-passkey`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: config.SUPABASE_ANON_KEY, Authorization: `Bearer ${config.SUPABASE_ANON_KEY}` }, body: JSON.stringify({ action: 'challenge' }) });
-          if (r.status === 404) fail('La huella quedó registrada, pero falta publicar la función «deposito-passkey» en Supabase para entrar sin contraseña.');
-        } catch { /* sin conexión: se verá al ingresar */ }
-      } catch (x) { fail(x?.name === 'NotAllowedError' ? 'Se canceló la verificación. No se activó.' : (friendly(x) || x?.message || 'No se pudo activar el acceso biométrico.')); }
-      renderBio();
-    }));
-    $('#bt', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
-      try { await bioVerify(p.id); ok('Verificación correcta'); } catch (x) { fail(x?.name === 'NotAllowedError' ? 'Se canceló la verificación.' : 'No se pudo verificar la identidad.'); }
-    }));
+    $('#be', box)?.addEventListener('click', () => wizard('enable'));
+    $('#bt', box)?.addEventListener('click', () => wizard('test'));
     $('#bm', box)?.addEventListener('change', (e) => { setBioLockMinutes(Number(e.target.value)); ok(`Se pedirá la huella tras ${e.target.value} minutos fuera de la aplicación`); });
     $('#bd', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
       const id = bioCredId(p.id);

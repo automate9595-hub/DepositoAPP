@@ -533,3 +533,16 @@ input:focus, select:focus, textarea:focus { background: var(--card); }
 /* Ingreso con huella en el login */
 .biologin { text-align: center; justify-items: center; margin-bottom: 14px; padding: 22px 18px; }
 .biologin .lockbtn { width: 96px; height: 96px; } .biologin .lockbtn svg { width: 48px; height: 48px; }
+
+/* ---- Asistente de huella ---- */
+.wiz { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.wiz li { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--card-2); }
+.wiz li[data-s="run"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+.wiz li[data-s="ok"] { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); background: var(--ok-bg); }
+.wiz li[data-s="bad"] { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); background: var(--bad-bg); }
+.wiz p { margin: 2px 0 0; }
+.wz-ico { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--idle-bg); }
+.wiz li[data-s="ok"] .wz-ico { background: var(--ok); color: #fff; } .wiz li[data-s="bad"] .wz-ico { background: var(--bad); color: #fff; }
+.wz-ico svg { width: 16px; height: 16px; stroke-width: 3; }
+.wz-spin { width: 16px; height: 16px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

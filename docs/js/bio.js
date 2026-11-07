@@ -87,7 +87,7 @@ export const bioServerRegistered = (uid) => !!load()[uid]?.server;
 export const bioCredId = (uid) => load()[uid]?.id || null;
 
 // register: función que guarda la clave pública en la base (RPC register_passkey); la entrega la pantalla de la cuenta
-export async function bioEnable(user, { register, label } = {}) {
+export async function bioEnable(user, { register, label, onStage } = {}) {
   const cred = await navigator.credentials.create({ publicKey: {
     rp: { name: RP_NAME, id: location.hostname },
     user: { id: uuidBytes(user.id), name: user.email || user.id, displayName: user.full_name || user.email || 'Usuario' },
@@ -101,23 +101,50 @@ export async function bioEnable(user, { register, label } = {}) {
   const rec = { email: user.email || '', id: b64u(cred.rawId), spki: b64u(spki), alg: r.getPublicKeyAlgorithm?.() ?? -7, at: new Date().toISOString(), server: false };
   const o = load(); o[user.id] = rec; save(o);
   try {
+    onStage?.('created');
     await bioVerify(user.id);                                    // prueba inmediata en este dispositivo
+    onStage?.('verified');
     if (register) { await register({ id: rec.id, public_key: rec.spki, alg: rec.alg, label }); o[user.id].server = true; save(o); }   // queda registrada en la base
+    onStage?.('saved');
   } catch (e) { bioDisable(user.id); throw e; }
+}
+
+// Texto técnico corto de un error (para mostrarlo y poder diagnosticar)
+export const errDetail = (e) => [e?.step && `paso: ${e.step}`, e?.name && e.name !== 'Error' && `tipo: ${e.name}`, e?.status && `código: ${e.status}`, e?.message && `mensaje: ${String(e.message).slice(0, 140)}`].filter(Boolean).join(' · ');
+
+// Explicación en lenguaje simple de por qué falló algo de la huella
+export function explainError(x) {
+  if (x?.plain || x?.net) return x.message;
+  if (x?.name === 'NotAllowedError' || x?.name === 'AbortError') return 'Se canceló, o este dispositivo no tiene una huella registrada para esta aplicación.';
+  if (x?.status === 404) return 'Falta publicar la función «deposito-passkey» en Supabase.';
+  if (x?.status === 401) return 'El servidor no reconoce esta huella. Vuelva a activarla (Reactivar).';
+  if (x?.status === 403) return x.message;
+  if (x?.name === 'SecurityError') return 'Este sitio no permite usar la huella (hace falta una dirección https).';
+  if (x?.name === 'InvalidStateError') return 'Este dispositivo ya tiene una huella registrada para esta aplicación. Desactive y vuelva a activar.';
+  if (x?.name === 'NotSupportedError') return 'Este dispositivo o navegador no admite claves de acceso con huella.';
+  return 'No se pudo completar la verificación.';
 }
 
 // Ingreso sin correo ni contraseña: el servidor valida la firma y devuelve un token de un solo uso (token_hash)
 export async function passkeyLogin({ baseUrl, anonKey }) {
-  const call = async (body) => {
-    const res = await fetch(`${baseUrl}/functions/v1/deposito-passkey`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: anonKey, Authorization: `Bearer ${anonKey}` }, body: JSON.stringify(body) });
+  const call = async (body, step) => {
+    let res;
+    try {
+      res = await fetch(`${baseUrl}/functions/v1/deposito-passkey`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: anonKey, Authorization: `Bearer ${anonKey}` }, body: JSON.stringify(body) });
+    } catch (e) {
+      throw Object.assign(new Error('No se pudo comunicar con la función «deposito-passkey». Revise que esté publicada y que «Verify JWT» esté desactivado.'), { step, net: true, name: 'ErrorDeRed' });
+    }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(data?.error || `Error ${res.status}`), { status: res.status });
+    if (!res.ok) throw Object.assign(new Error(data?.error || data?.message || `Error ${res.status}`), { step, status: res.status });
     return data;
   };
-  const ch = await call({ action: 'challenge' });
-  const a = await navigator.credentials.get({ publicKey: { challenge: fromB64u(ch.challenge), rpId: location.hostname, timeout: 60000, userVerification: 'required' } });
+  const ch = await call({ action: 'challenge' }, 'pedir desafío');
+  let a;
+  try { a = await navigator.credentials.get({ publicKey: { challenge: fromB64u(ch.challenge), rpId: location.hostname, timeout: 60000, userVerification: 'required' } }); }
+  catch (e) { try { e.step = 'huella del dispositivo'; } catch { /* inmutable */ } throw e; }
+  if (!a) throw Object.assign(new Error('El dispositivo no entregó ninguna clave'), { step: 'huella del dispositivo', name: 'NotAllowedError' });
   const r = a.response;
-  const out = await call({ action: 'login', id: ch.id, credential_id: b64u(a.rawId), authenticator_data: b64u(r.authenticatorData), client_data_json: b64u(r.clientDataJSON), signature: b64u(r.signature) });
+  const out = await call({ action: 'login', id: ch.id, credential_id: b64u(a.rawId), authenticator_data: b64u(r.authenticatorData), client_data_json: b64u(r.clientDataJSON), signature: b64u(r.signature) }, 'verificar en el servidor');
   return out.token_hash;
 }
 

@@ -3,7 +3,7 @@ import { friendly } from '../api.js';
 import { bus } from '../state.js';
 import { esc } from '../format.js';
 import { icon, logoSvg, $, busy, themeButton } from '../ui.js';
-import { bioEnabled, bioSupported, bioVerify, bioAccounts, bioServerRegistered, passkeyLogin } from '../bio.js';
+import { bioEnabled, bioSupported, bioVerify, bioAccounts, bioServerRegistered, passkeyLogin, errDetail, explainError } from '../bio.js';
 
 const ready = () => { window.__appReady = true; };
 const brand = `<div class="brand"><div class="logo">${logoSvg}</div><div><b>Depósito</b><div class="muted small">Gestión de stock y pedidos</div></div></div>`;
@@ -100,13 +100,8 @@ async function showBioLogin(app) {
         if (r.error || !r.data?.session) throw Object.assign(new Error('No se pudo abrir la sesión. Ingrese con su contraseña.'), { plain: true });
         bus.emit('login', r.data.session);
       } catch (x) {
-        let m;
-        if (x?.plain) m = x.message;
-        else if (x?.name === 'NotAllowedError' || x?.name === 'AbortError') m = 'Se canceló o no hay una huella registrada en este dispositivo. Ingrese con su contraseña y actívela en Cuenta.';
-        else if (x?.status === 404) m = 'El ingreso con huella todavía no está habilitado en el servidor (falta publicar la función «deposito-passkey»). Use su contraseña.';
-        else if (x?.status === 403) m = x.message;
-        else m = 'No se pudo verificar la identidad. Vuelva a intentar o use su contraseña.';
-        err.textContent = m; err.classList.remove('hidden');
+        const m = explainError(x) + (x?.name === 'NotAllowedError' || x?.name === 'AbortError' ? ' Ingrese con su contraseña y actívela en Cuenta.' : '');
+        err.innerHTML = `${esc(m)}<br><small class="muted">${esc(errDetail(x))}</small>`; err.classList.remove('hidden');
       } finally { btn.classList.remove('busy'); }
     });
   } catch { /* sin biometría: queda el ingreso normal */ }

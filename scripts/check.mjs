@@ -15,9 +15,9 @@ const walk = (d) => readdirSync(join(root, d)).flatMap((n) => {
 // 1. Estructura
 const required = ['package.json', 'README.md', '.env.example', '.gitignore', 'publicar.bat',
   'src/index.html', 'src/manifest.webmanifest', 'src/sw.js', 'src/config.example.js', 'src/css/app.css',
-  'src/js/main.js', 'src/js/supa.js', 'src/js/api.js', 'src/js/cart.js', 'src/js/state.js',
+  'src/js/main.js', 'src/js/backup-utils.js', 'src/js/barcode-decode.js', 'src/js/bio.js', 'src/js/supa.js', 'src/js/api.js', 'src/js/cart.js', 'src/js/state.js',
   'src/icons/icon-192.png', 'src/icons/icon-512.png', 'src/icons/icon-maskable-512.png',
-  'supabase/01_esquema.sql', 'supabase/02_funciones.sql', 'supabase/03_seguridad.sql', 'supabase/04_crear_administrador.sql', 'supabase/06_clientes_costos.sql', 'supabase/07_respaldos.sql', 'supabase/08_programar_respaldos.sql', 'supabase/09_respaldos_y_cobros.sql', 'supabase/instalar_todo.sql',
+  'supabase/01_esquema.sql', 'supabase/02_funciones.sql', 'supabase/03_seguridad.sql', 'supabase/04_crear_administrador.sql', 'supabase/06_clientes_costos.sql', 'supabase/07_respaldos.sql', 'supabase/08_programar_respaldos.sql', 'supabase/09_respaldos_y_cobros.sql', 'supabase/10_restaurar_respaldos.sql', 'supabase/11_eliminar_productos_clientes.sql', 'supabase/12_seguridad_respaldos.sql', 'supabase/instalar_todo.sql',
   'supabase/tests/escenarios.sql', 'scripts/build.mjs', 'tests/cart.test.mjs'];
 for (const f of required) if (!existsSync(join(root, f))) fail(`Falta el archivo obligatorio: ${f}`);
 if (errors.length) done();
@@ -59,7 +59,7 @@ for (const f of jsFiles.filter((x) => x.startsWith('src/js') || x.startsWith('te
 }
 
 // 4. SQL: RLS en todas las tablas, funciones llamadas por la app existen
-const s1 = rd('supabase/01_esquema.sql') + rd('supabase/09_respaldos_y_cobros.sql'); const s2 = rd('supabase/02_funciones.sql') + rd('supabase/06_clientes_costos.sql') + rd('supabase/09_respaldos_y_cobros.sql'); const s3 = rd('supabase/03_seguridad.sql') + rd('supabase/06_clientes_costos.sql') + rd('supabase/09_respaldos_y_cobros.sql');
+const s1 = rd('supabase/01_esquema.sql') + rd('supabase/09_respaldos_y_cobros.sql'); const s2 = rd('supabase/02_funciones.sql') + rd('supabase/06_clientes_costos.sql') + rd('supabase/09_respaldos_y_cobros.sql') + rd('supabase/10_restaurar_respaldos.sql') + rd('supabase/11_eliminar_productos_clientes.sql'); const s3 = rd('supabase/03_seguridad.sql') + rd('supabase/06_clientes_costos.sql') + rd('supabase/09_respaldos_y_cobros.sql');
 const tables = [...(s1 + rd('supabase/06_clientes_costos.sql')).matchAll(/create table if not exists public\.(\w+)/g)].map((m) => m[1]);
 for (const t of tables) if (!new RegExp(`alter table public\\.${t}\\s+enable row level security`).test(s3)) fail(`La tabla ${t} no tiene RLS habilitado en 03_seguridad.sql`);
 const fns = new Set([...s2.matchAll(/create or replace function public\.(\w+)/g)].map((m) => m[1]));
@@ -78,6 +78,26 @@ for (const f of [...walk('src'), ...walk('scripts'), ...walk('supabase'), ...wal
 }
 if (/service_role/.test(walk('src').map((f) => rd(f)).join('\n').replace(/NUNCA service_role/g, ''))) fail('El código de la app menciona service_role');
 if (!/\.env\b/.test(rd('.gitignore'))) fail('.gitignore debe excluir .env');
+
+// 5b. Seguridad: reglas que no deben romperse nunca
+{
+  // Toda función SECURITY DEFINER debe fijar search_path (evita el secuestro de funciones por esquema)
+  for (const f of walk('supabase').filter((x) => x.endsWith('.sql') && !x.includes('instalar_todo'))) {
+    const t = rd(f);
+    for (const m of t.matchAll(/create or replace function\s+([\w.]+)\s*\([\s\S]*?\$(\w*)\$/gi)) {
+      if (/security definer/i.test(m[0]) && !/set search_path/i.test(m[0])) fail(`${f}: la función ${m[1]} es SECURITY DEFINER sin «set search_path»`);
+    }
+  }
+  // La política de seguridad del navegador (CSP) no admite manejadores inline: onclick=, onload=, onerror=…
+  for (const f of walk('src').filter((x) => /\.(js|html)$/.test(x))) {
+    const t = rd(f).replace(/\/\/.*$/gm, '');
+    const m = t.match(/\son(click|load|error|change|submit|input|mouseover|focus|blur)\s*=\s*["']/i);
+    if (m) fail(`${f}: manejador inline «on${m[1]}=» (la política de seguridad lo bloquea; use addEventListener)`);
+    if (/javascript:/i.test(t)) fail(`${f}: contiene un enlace javascript:`);
+    if (/\beval\s*\(|new Function\s*\(|document\.write\s*\(/.test(t)) fail(`${f}: usa eval / new Function / document.write`);
+  }
+  if (!rd('src/index.html').includes('__CSP__')) fail('src/index.html: falta el marcador __CSP__ de la política de seguridad');
+}
 
 // 6. Pruebas unitarias
 function done() {

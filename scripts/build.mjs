@@ -58,7 +58,25 @@ for (const rel of written) {
 const swPath = join(out, 'sw.js');
 writeFileSync(swPath, readFileSync(swPath, 'utf8').replace('__ASSETS__', JSON.stringify(assets, null, 1)));
 
-writeFileSync(join(out, 'index.html'), readFileSync(join(out, 'index.html')));
+// Política de seguridad del navegador (CSP). GitHub Pages no permite cabeceras, así que va en una etiqueta <meta>.
+// Los <script> en línea de index.html se autorizan por su hash (si se edita uno, el hash se recalcula solo).
+{
+  let html = readFileSync(join(out, 'index.html'), 'utf8');
+  const hashes = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => `'sha256-${createHash('sha256').update(m[1].replace(/\r\n?/g, '\n')).digest('base64')}'`);
+  const origin = new URL(url).origin; const wss = origin.replace(/^https:/, 'wss:');
+  const cdn = 'https://cdn.jsdelivr.net https://esm.sh https://unpkg.com';
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' ${hashes.join(' ')} ${cdn}`,
+    "style-src 'self' 'unsafe-inline'",
+    `img-src 'self' data: blob: https://*.supabase.co ${origin}`,
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co ${origin} ${wss} ${cdn}`,
+    "media-src 'self' blob:", "worker-src 'self'", "manifest-src 'self'",
+    "object-src 'none'", "base-uri 'self'", "form-action 'self'",
+  ].join('; ');
+  html = html.replace('__CSP__', csp);
+  writeFileSync(join(out, 'index.html'), html);
+}
 writeFileSync(join(out, '404.html'), readFileSync(join(out, 'index.html')));
 writeFileSync(join(out, '.nojekyll'), '');
 writeFileSync(join(out, MARK), `build ${VERSION}\n`);

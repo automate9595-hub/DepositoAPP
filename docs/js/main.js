@@ -1,7 +1,8 @@
 import { supabase, configured, config, libError, storedSession, withTimeout } from './supa.js';
 import { state, bus, initCart, cacheProfile, cachedProfile, clearProfileCache, role, can } from './state.js';
 import { setLocale, esc } from './format.js';
-import { icon, $, $$, toast, toastAction, errorBox, spinner, themeButton, soundButton, initEffects } from './ui.js';
+import { icon, logoSvg, $, $$, toast, toastAction, notify, errorBox, spinner, themeButton, soundButton, initEffects } from './ui.js';
+import { bioEnabled, bioLock } from './bio.js';
 import { initTheme } from './theme.js';
 import { soundEnabled, soundChoiceMade, setSound, playSound, kindFor } from './sound.js';
 import { friendly, read } from './api.js';
@@ -19,7 +20,7 @@ import { cartLines } from './cart.js';
 
 const app = document.getElementById('app');
 initTheme(); initEffects();
-let current = null; let navSeq = 0; let channel = null; let wasDown = false; let started = null; let hiddenAt = 0;
+let current = null; let navSeq = 0; let channel = null; let wasDown = false; let started = null; let hiddenAt = 0; let unlockedUid = null;
 const pendingKinds = new Set();
 
 // ---------- Rutas por rol ----------
@@ -177,7 +178,7 @@ function systemNotify(n) {
 function onNotification(n) {
   state.unread += 1; updateBell();
   playSound(kindFor(n.title));
-  toast(`${n.title}${n.body ? ' · ' + n.body : ''}`);
+  notify(n.title, n.body || '', { kind: kindFor(n.title), onClick: () => { location.hash = '#/avisos'; } });
   systemNotify(n);
   bus.emit('notification', n);
   queueRefresh('orders');
@@ -203,6 +204,7 @@ window.addEventListener('online', () => { setConn('warn'); wasDown = true; resyn
 window.addEventListener('offline', () => { wasDown = true; setConn('off'); });
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { hiddenAt = Date.now(); return; }
+  if (state.profile && bioEnabled(state.profile.id) && Date.now() - hiddenAt > LOCK_AFTER_MS) lockFor(state.profile);
   if (state.profile && Date.now() - hiddenAt > 20000) resync();
 });
 
@@ -226,8 +228,15 @@ function startSession(session) {
   return starting;
 }
 const AUTH_RE = /jwt|invalid.*token|refresh token|not authenticated|401/i;
+const LOCK_AFTER_MS = 2 * 60 * 1000;   // al volver a la app tras 2 minutos fuera, se pide huella o rostro de nuevo
+const lockFor = (user) => bioLock({ uid: user.id, label: user.email || '', icon, logoSvg, onPassword: () => logout() });
 async function doStartSession(session) {
   started = session.user.id;
+  if (bioEnabled(session.user.id) && unlockedUid !== session.user.id) {   // acceso con huella o rostro activado en este dispositivo
+    const unlocked = await lockFor(session.user);
+    if (!unlocked) { started = null; return; }
+    unlockedUid = session.user.id;
+  }
   state.user = session.user;
   let prof;
   try { prof = await loadProfile(session.user); }
@@ -251,7 +260,7 @@ function offerSound() {
   setTimeout(() => toastAction('¿Quiere escuchar un sonido cuando lleguen pedidos?', 'Activar', () => setSound(true)), 1500);
 }
 async function logout() {
-  stopRealtime(); started = null; current?.dispose?.(); current = null;
+  stopRealtime(); started = null; unlockedUid = null; current?.dispose?.(); current = null;
   try { await supabase.auth.signOut(); } catch { /* sesión local se limpia igual */ }
   state.user = null; state.profile = null; state.unread = 0; clearProfileCache();
   location.hash = '';
@@ -302,7 +311,7 @@ async function boot() {
     }, 0);
   });
   // Inicio de sesión directo desde el formulario (no depende solo del evento de la librería)
-  bus.on('login', (session) => startSession(session));
+  bus.on('login', (session) => { unlockedUid = session?.user?.id || null; startSession(session); });   // entrar con contraseña ya es una verificación
   let session = null;
   try { ({ data: { session } } = await withTimeout(supabase.auth.getSession(), 8000, 'timeout leyendo la sesión')); }
   catch { session = storedSession(); } // plan B: la sesión guardada en el teléfono

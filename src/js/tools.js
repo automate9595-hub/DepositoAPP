@@ -1,6 +1,8 @@
 // Herramientas con interfaz: escáner de códigos de barras, descarga de CSV, compartir e imprimir pedidos.
 import { modal, icon, toast, ok, fail } from './ui.js';
+import { esc } from './format.js';
 import { toCsv, orderText, remitoHtml } from './export-utils.js';
+import { decodeRgba } from './barcode-decode.js';
 
 // ---------- Descargas ----------
 export function downloadCsv(filename, header, rows) {
@@ -45,31 +47,44 @@ export function bindOrderTools(root, o) {
 }
 
 // ---------- Escáner de códigos de barras / QR (usa la cámara; solo si el navegador lo permite) ----------
-export const scannerSupported = () => 'BarcodeDetector' in window && !!navigator.mediaDevices?.getUserMedia;
+// Usa BarcodeDetector si el navegador lo trae; si no (iPhone/Safari), usa el decodificador propio de EAN/UPC.
+export const scannerSupported = () => !!navigator.mediaDevices?.getUserMedia;
 
-export function scanBarcode() {
-  return modal(`<h2>Escanear código</h2>
+export function scanBarcode({ title = 'Escanear código' } = {}) {
+  return modal(`<h2>${esc(title)}</h2>
     <div class="scanbox"><video id="sv" playsinline muted autoplay></video><i class="scanline"></i></div>
-    <p class="muted small" id="sm" aria-live="polite">Apunte la cámara al código de barras del producto…</p>
+    <p class="muted small" id="sm" aria-live="polite">Apunte la cámara al código de barras del producto. Si está oscuro o borroso, acérquelo o aléjelo un poco.</p>
+    <form id="mf" class="row" style="margin-top:10px"><input name="c" class="grow" inputmode="numeric" placeholder="O escriba el código a mano" aria-label="Código escrito a mano" maxlength="60"><button class="btn primary" aria-label="Usar este código">${icon('check')}</button></form>
     <button class="btn block" data-close type="button" style="margin-top:12px">Cancelar</button>`, {
     onMount: async (ov, close) => {
       let stream; let stop = false; const msg = ov.querySelector('#sm'); const video = ov.querySelector('#sv');
       const cleanup = () => { stop = true; stream?.getTracks().forEach((t) => t.stop()); };
       const obs = new MutationObserver(() => { if (!ov.isConnected) { cleanup(); obs.disconnect(); } });
       obs.observe(document.body, { childList: true });
+      ov.querySelector('#mf').addEventListener('submit', (e) => { e.preventDefault(); const v = e.target.c.value.trim(); if (v) { cleanup(); close(v); } });
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false });
         video.srcObject = stream; await video.play();
-        const det = new BarcodeDetector(); // todos los formatos que soporte el dispositivo
+        const det = 'BarcodeDetector' in window ? new BarcodeDetector() : null;   // todos los formatos que soporte el dispositivo
+        const canvas = document.createElement('canvas'); const g = canvas.getContext('2d', { willReadFrequently: true });
         const tick = async () => {
           if (stop) return;
-          try { const r = await det.detect(video); if (r[0]?.rawValue) { cleanup(); close(r[0].rawValue); return; } } catch { /* sigue intentando */ }
-          setTimeout(tick, 250);
+          try {
+            let code = null;
+            if (det) { const r = await det.detect(video); code = r[0]?.rawValue || null; }
+            if (!code && video.videoWidth) {
+              const k = Math.min(1, 960 / video.videoWidth); canvas.width = Math.round(video.videoWidth * k); canvas.height = Math.round(video.videoHeight * k);
+              g.drawImage(video, 0, 0, canvas.width, canvas.height);
+              code = decodeRgba(g.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
+            }
+            if (code) { cleanup(); close(code); return; }
+          } catch { /* sigue intentando */ }
+          setTimeout(tick, det ? 250 : 180);
         };
         tick();
       } catch (e) {
         cleanup();
-        msg.textContent = e?.name === 'NotAllowedError' ? 'No hay permiso para usar la cámara. Habilítelo en los ajustes del navegador.' : 'No se pudo iniciar la cámara en este dispositivo.';
+        msg.textContent = e?.name === 'NotAllowedError' ? 'No hay permiso para usar la cámara. Habilítelo en los ajustes del navegador, o escriba el código a mano.' : 'No se pudo iniciar la cámara en este dispositivo. Puede escribir el código a mano.';
       }
     },
   });

@@ -1,6 +1,6 @@
 import { read, rpc, friendly } from '../api.js';
 import { esc, money, dateTime, accountBadge, debounce, one, orderTitle, PUBLIC_CUSTOMER } from '../format.js';
-import { $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal, icon } from '../ui.js';
+import { $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal, icon, confirmBox } from '../ui.js';
 import { can, state } from '../state.js';
 import { orderCard } from './order-common.js';
 
@@ -84,7 +84,8 @@ async function detail(el, ctx, id) {
         ${adm ? `<span class="muted">Proveedor</span><span>${esc(c.supplier_name || (c.is_public ? '—' : 'Todos los proveedores'))}</span>` : ''}</div>
         ${c.notes ? `<p class="small"><span class="muted">Notas:</span> ${esc(c.notes)}</p>` : ''}
         ${adm && c.has_account ? `<div class="row wrap"><button class="btn accent grow" id="pay">Registrar pago</button><button class="btn grow" id="adj">Ajuste</button></div>` : ''}
-        ${editable ? '<button class="btn block" id="ed">Editar datos</button>' : ''}</div>
+        ${editable ? '<button class="btn block" id="ed">Editar datos</button>' : ''}
+        ${adm && !c.is_public ? `<button class="btn danger block" id="del">${icon('trash')} Eliminar cliente</button>` : ''}</div>
       ${c.has_account ? `<div class="card"><h3 style="margin-bottom:8px">Movimientos de la cuenta</h3>${mv.length ? mv.map((m) => `<div class="line"><div class="grow"><b>${m.kind === 'CARGO' ? 'Pedido entregado' : m.kind === 'PAGO' ? 'Pago' + (m.method ? ' · ' + esc(m.method) : '') : 'Ajuste'}</b>
         <div class="muted small">${dateTime(m.created_at)}${one(m.orders) ? ' · Pedido número ' + one(m.orders).order_number : ''}${m.note ? ' · ' + esc(m.note) : ''}</div></div>
         <b class="mono" style="color:${Number(m.amount) > 0 ? 'var(--bad)' : 'var(--ok)'}">${Number(m.amount) > 0 ? '+' : '−'}${money(Math.abs(m.amount))}</b></div>`).join('') : '<p class="muted small">Todavía no hay movimientos.</p>'}</div>` : ''}
@@ -93,6 +94,13 @@ async function detail(el, ctx, id) {
     $('#pay', el)?.addEventListener('click', async () => { if (await paymentForm(c)) { ok('Pago registrado'); load(); } });
     $('#adj', el)?.addEventListener('click', async () => { if (await adjustForm(c)) { ok('Ajuste registrado'); load(); } });
     $('#ed', el)?.addEventListener('click', async () => { if (await customerForm(c)) { ok('Cliente guardado'); load(); } });
+    $('#del', el)?.addEventListener('click', async (e) => {
+      if (!(await confirmBox('Eliminar cliente', `¿Eliminar a «${c.name}»? Solo se puede si nunca tuvo pedidos ni movimientos de cuenta. Esta acción no se puede deshacer.`, { okText: 'Eliminar', danger: true }))) return;
+      await busy(e.currentTarget, async () => {
+        try { await rpc('delete_customer', { p_customer_id: c.id }); ok('Cliente eliminado'); ctx.navigate('#/clientes'); }
+        catch (x) { fail(friendly(x)); }
+      });
+    });
   }
   await load();
   return { refresh: load };

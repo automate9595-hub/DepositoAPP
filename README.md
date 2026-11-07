@@ -152,3 +152,35 @@ Para activar el respaldo automático:
 La Edge Function genera el JSON con las tablas de negocio y los archivos del bucket privado `product-photos`. Los respaldos automáticos se guardan en el bucket privado `database-backups`. La exportación de usuarios no incluye contraseñas ni identidades de Supabase Auth.
 
 Al confirmar una entrega, el sistema permite cobrar ahora (monto y medio de pago) o dejar el total a cuenta corriente. Si se registra un pago parcial a un cliente con cuenta, el resto queda pendiente. El registro de entrega, cargo y pago se ejecuta en una única transacción de base de datos.
+
+
+## Restaurar (importar) un respaldo
+
+Desde **Administración › Respaldos › Importar** se puede volver a cargar el archivo `.json` que entrega «Exportar» (manual) o cualquiera de los respaldos automáticos guardados en el servidor (pestaña «Automático», botón de restaurar).
+
+**Instalación (una sola vez):** ejecutar `supabase/10_restaurar_respaldos.sql` en Supabase › SQL Editor, después de `07_respaldos.sql` y `09_respaldos_y_cobros.sql`. Luego volver a publicar la aplicación.
+
+**Dos modos:**
+* **Agregar lo que falta** (predeterminado, el más seguro): suma los registros que no existen y no modifica ni borra nada.
+* **Restaurar todo**: reemplaza el contenido de las tablas incluidas en el respaldo. Pide escribir `RESTAURAR` para confirmar y, antes, descarga una copia de los datos actuales (se puede desmarcar).
+
+**Cómo funciona:**
+* Todo ocurre en una sola transacción de base de datos: si algo falla, no queda nada a medias.
+* Solo el administrador principal puede restaurar. El administrador que ejecuta la restauración nunca se elimina a sí mismo.
+* Las contraseñas **no** forman parte de ningún respaldo (viven en Supabase Auth). Cada perfil se vincula con la cuenta de Auth que tenga el mismo id o el mismo correo. Si se perdió el proyecto de Supabase, el orden es: reinstalar la base (`instalar_todo.sql`, `07`, `09`, `10`) → crear el administrador (`04_crear_administrador.sql`) → crear en Administración › Usuarios las cuentas de proveedores y del personal de depósito con los mismos correos → importar el respaldo. Si falta alguna de esas cuentas, la restauración se detiene y muestra qué correos hay que crear.
+* Los contadores (número de pedido, movimientos) continúan después del mayor valor restaurado.
+* Las fotografías se vuelven a subir al almacenamiento y los enlaces de los productos se actualizan al proyecto actual.
+* Las reglas automáticas (auditoría, cargos a cuenta corriente, inventario inicial) se desactivan solo durante la carga para no duplicar movimientos.
+
+**Límite práctico:** los datos (sin fotografías) viajan en una única llamada; para negocios muy grandes, si Supabase corta la operación por tiempo, nada se aplica y se puede reintentar.
+
+
+## Novedades v10
+
+**Instalación:** ejecutar en Supabase › SQL Editor, en orden, `11_eliminar_productos_clientes.sql` y `12_seguridad_respaldos.sql`.
+
+* **Escanear código al crear un producto**: Productos › Nuevo › botón de cámara junto a «Código». Lee EAN-13, UPC-A y EAN-8 en cualquier celular (con la cámara y, en Chrome, además todos los formatos); también se puede escribir a mano o usar un lector físico. Avisa si el código ya existe.
+* **Eliminar productos y clientes**: botón rojo al editar el producto / en la ficha del cliente. Solo si nunca tuvieron pedidos ni movimientos de cuenta; si no, se desactivan.
+* **Imágenes**: siempre centradas y completas con el mismo encuadre; las fotos del celular se enderezan solas.
+* **Acceso con huella o rostro**: Mi cuenta › Acceso con huella o rostro. Requiere https y bloqueo de pantalla en el dispositivo.
+* **Seguridad**: ver `AUDITORIA_SEGURIDAD.md`.

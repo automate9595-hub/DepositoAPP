@@ -5,6 +5,7 @@ import { esc, dateTime, roleLabel } from '../format.js';
 import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner } from '../ui.js';
 import { themePref, setTheme } from '../theme.js';
 import { soundEnabled, setSound, previewSound } from '../sound.js';
+import { bioSupported, bioEnabled, bioEnable, bioDisable, bioVerify } from '../bio.js';
 
 const APP_VERSION = (() => { try { return new URL(import.meta.url).searchParams.get('v') || ''; } catch { return ''; } })();
 
@@ -35,6 +36,7 @@ export async function accountView(el) {
         <button type="button" class="switch" id="sw" role="switch" aria-label="Sonido de avisos" aria-checked="${soundEnabled()}"></button></div>
       <button type="button" class="btn sm" id="tst">${icon('volume')} Probar sonido</button>
     </div>
+    <div class="card stack" id="biocard"><h3>Acceso con huella o rostro</h3><p class="muted small">Comprobando el dispositivo…</p></div>
     <div class="card stack"><h3>Aplicación</h3>
       ${notifOk ? `<button class="btn block" id="np">${icon('bell')} Activar avisos del sistema</button>
       <p class="muted small">Con la app abierta o en segundo plano, el teléfono mostrará un aviso cuando llegue algo nuevo. Si Android cierra la app por completo, verá los avisos al volver a abrirla.</p>` : ''}
@@ -49,6 +51,31 @@ export async function accountView(el) {
   const syncSw = () => $('#sw', el)?.setAttribute('aria-checked', String(soundEnabled()));
   document.addEventListener('soundchange', syncSw);
   $('#tst', el).addEventListener('click', () => { if (!previewSound('order')) fail('Este navegador no permite reproducir sonido.'); });
+  renderBio();
+  async function renderBio() {
+    const box = $('#biocard', el); if (!box) return;
+    const supported = await bioSupported();
+    if (!$('#biocard', el)) return;   // se cambió de pantalla mientras se comprobaba
+    if (!supported) {
+      box.innerHTML = `<h3>${icon('fingerprint')} Acceso con huella o rostro</h3><p class="muted small">Este dispositivo o navegador no ofrece huella ni reconocimiento facial para aplicaciones web (hace falta una conexión segura https y un bloqueo de pantalla configurado en el teléfono o la computadora).</p>`;
+      return;
+    }
+    const on = bioEnabled(p.id);
+    box.innerHTML = `<h3>${icon('fingerprint')} Acceso con huella o rostro</h3>
+      <p class="muted small">${on ? 'Activado en este dispositivo: al abrir la app se pide huella o rostro. También se pide al volver tras 2 minutos fuera.' : 'Entre más rápido y seguro: el teléfono verifica su huella o su rostro con el sensor o la cámara del dispositivo. La aplicación nunca recibe su cara ni su huella.'}</p>
+      ${on ? `<div class="row"><button type="button" class="btn grow" id="bt">Probar ahora</button><button type="button" class="btn danger grow" id="bd">Desactivar</button></div>`
+           : `<button type="button" class="btn primary block" id="be">${icon('fingerprint')} Activar en este dispositivo</button>`}
+      <p class="muted small">Si cierra la sesión, volverá a entrar con su correo y contraseña. Cada dispositivo se activa por separado.</p>`;
+    $('#be', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
+      try { await bioEnable({ id: p.id, email: p.email, full_name: p.full_name }); ok('Acceso biométrico activado'); }
+      catch (x) { fail(x?.name === 'NotAllowedError' ? 'Se canceló la verificación. No se activó.' : (x?.message || 'No se pudo activar el acceso biométrico.')); }
+      renderBio();
+    }));
+    $('#bt', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
+      try { await bioVerify(p.id); ok('Verificación correcta'); } catch (x) { fail(x?.name === 'NotAllowedError' ? 'Se canceló la verificación.' : 'No se pudo verificar la identidad.'); }
+    }));
+    $('#bd', box)?.addEventListener('click', () => { bioDisable(p.id); ok('Acceso biométrico desactivado'); renderBio(); });
+  }
   $('#pf', el).addEventListener('submit', async (e) => {
     e.preventDefault();
     await busy($('button', e.target), async () => {

@@ -1,9 +1,9 @@
 import { supabase } from '../supa.js';
 import { read, rpc, write, friendly } from '../api.js';
 import { esc, money, cleanSearch, debounce, one, toInt, dateTime } from '../format.js';
-import { $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal, img, icon, compressImage } from '../ui.js';
+import { $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal, img, icon, compressImage, confirmBox, toast } from '../ui.js';
 import { can } from '../state.js';
-import { attachScanner, downloadCsv, fetchAll, stamp } from '../tools.js';
+import { attachScanner, scanBarcode, scannerSupported, downloadCsv, fetchAll, stamp } from '../tools.js';
 import { parseLow } from '../export-utils.js';
 
 const LOW_KEY = 'deposito-low-stock';
@@ -54,7 +54,9 @@ function productForm(p, cats) {
   const isNew = !p;
   return modal(`<h2>${isNew ? 'Nuevo producto' : 'Editar producto'}</h2>
     <form id="f" class="stack" novalidate>
-      <label class="field"><span>Código</span><input name="code" value="${esc(p?.code || '')}" maxlength="40" required></label>
+      <div class="field"><span>Código de barras o código interno</span><div class="row"><input name="code" class="grow" value="${esc(p?.code || '')}" maxlength="40" required autocomplete="off" autocapitalize="characters" aria-label="Código">
+        ${scannerSupported() ? `<button type="button" class="btn scanbtn" id="scan" aria-label="Escanear código de barras" title="Escanear con la cámara">${icon('scan')}</button>` : ''}</div>
+        <p class="small hidden" id="codehint" aria-live="polite"></p></div>
       <label class="field"><span>Nombre</span><input name="name" value="${esc(p?.name || '')}" maxlength="120" required></label>
       <label class="field"><span>Descripción</span><textarea name="description" maxlength="500">${esc(p?.description || '')}</textarea></label>
       <label class="field"><span>Categoría</span><select name="category_id"><option value="">Sin categoría</option>
@@ -63,11 +65,12 @@ function productForm(p, cats) {
         <label class="field grow"><span>Precio de venta</span><input name="price" inputmode="decimal" value="${p ? p.price : ''}" required></label></div>
       <p class="small muted" id="mg" aria-live="polite"></p>
       ${isNew ? '<label class="field"><span>Stock inicial (opcional)</span><input name="stock" inputmode="numeric" value="0"></label>' : ''}
-      <div class="field"><span>Fotografía</span><div class="row"><div class="thumb" id="pv" style="display:grid;place-items:center;overflow:hidden">${img(p?.photo_url, '') || icon('image')}</div>
-        <input name="photo" type="file" accept="image/*" class="grow"></div></div>
+      <div class="field"><span>Fotografía</span><div class="pimg pvbox" id="pv">${icon('image')}${img(p?.photo_url, '')}</div>
+        <input name="photo" type="file" accept="image/*" style="margin-top:8px"><p class="small muted">Así se verá en el catálogo: centrada y completa. Si sacó la foto con el celular, se endereza sola.</p></div>
       <label class="check"><input type="checkbox" name="active" ${p?.active === false ? '' : 'checked'}> Producto activo (visible para proveedores)</label>
       <p class="notice bad hidden" id="err" role="alert"></p>
       <div class="row"><button type="button" class="btn grow" data-close>Cancelar</button><button class="btn primary grow">Guardar</button></div>
+      ${!isNew && can('products') ? `<button type="button" class="btn danger block" id="del">${icon('trash')} Eliminar producto</button>` : ''}
     </form>`, {
     onMount: (ov, close) => {
       const f = $('#f', ov); const err = $('#err', ov);
@@ -77,7 +80,41 @@ function productForm(p, cats) {
         $('#mg', ov).innerHTML = Number.isFinite(c) && Number.isFinite(v) && v > 0 ? `Ganancia por unidad: <b style="color:${v - c >= 0 ? 'var(--ok)' : 'var(--bad)'}">${money(v - c)}</b> · Margen sobre la venta: <b>${(((v - c) / v) * 100).toFixed(1)}%</b> · Recargo sobre el costo: <b>${c > 0 ? (((v - c) / c) * 100).toFixed(1) + '%' : '—'}</b>` : 'El costo solo lo ven los administradores.';
       };
       f.cost.addEventListener('input', margin); f.price.addEventListener('input', margin); margin();
-      f.photo.addEventListener('change', () => { const file = f.photo.files[0]; if (file) { $('#pv', ov).innerHTML = `<img class="ok" alt="" src="${URL.createObjectURL(file)}" style="width:100%;height:100%;object-fit:contain;object-position:center;padding:3px">`; } });
+
+      // ----- Código: escanear con la cámara (o lector físico) y avisar si ya existe -----
+      const hint = $('#codehint', ov);
+      async function checkCode() {
+        const code = f.code.value.trim(); hint.classList.add('hidden');
+        if (!code || code === p?.code) return;
+        try {
+          const { data } = await read((s) => s.from('products').select('id,name').eq('code', code).limit(1));
+          const hit = (data || [])[0];
+          if (hit && hit.id !== p?.id) { hint.innerHTML = `Ya existe un producto con este código: <b>${esc(hit.name)}</b>. No se pueden repetir códigos.`; hint.style.color = 'var(--bad)'; hint.classList.remove('hidden'); }
+        } catch { /* sin conexión: el servidor igual rechaza duplicados al guardar */ }
+      }
+      f.code.addEventListener('change', checkCode);
+      // Los lectores físicos terminan con Enter: pasa al nombre en vez de guardar a medias
+      f.code.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); f.code.dispatchEvent(new Event('change')); f.name.focus(); } });
+      $('#scan', ov)?.addEventListener('click', async () => {
+        const code = await scanBarcode({ title: 'Escanear código del producto' });
+        if (!code) return;
+        f.code.value = String(code).trim().slice(0, 40);
+        toast(`Código leído: ${f.code.value}`, 'ok');
+        await checkCode();
+        f.name.focus();
+      });
+      $('#del', ov)?.addEventListener('click', async (e) => {
+        if (!(await confirmBox('Eliminar producto', `¿Eliminar «${p.name}»? Solo se puede si nunca estuvo en un pedido. Se borran también su stock, su costo y su foto. Esta acción no se puede deshacer.`, { okText: 'Eliminar', danger: true }))) return;
+        await busy(e.currentTarget, async () => {
+          try {
+            const res = await rpc('delete_product', { p_product_id: p.id });
+            const path = String(res?.photo_url || '').split('/product-photos/')[1];
+            if (path) await supabase.storage.from('product-photos').remove([decodeURIComponent(path.split('?')[0])]).catch(() => {});
+            ok('Producto eliminado'); close(true);
+          } catch (x) { show(friendly(x)); }
+        });
+      });
+      f.photo.addEventListener('change', () => { const file = f.photo.files[0]; if (file) { $('#pv', ov).innerHTML = `${icon('image')}<img class="ok" data-pimg alt="" src="${URL.createObjectURL(file)}">`; } });
       f.addEventListener('submit', async (e) => {
         e.preventDefault(); err.classList.add('hidden');
         const price = Number(String(f.price.value).replace(',', '.')); const cost = f.cost.value.trim() === '' ? 0 : Number(String(f.cost.value).replace(',', '.'));
@@ -87,6 +124,7 @@ function productForm(p, cats) {
         const stock = isNew ? toInt(f.stock.value) : 0;
         if (stock < 0) return show('El stock inicial no puede ser negativo.');
         await busy($('button:not([type=button])', f), async () => {
+          let uploadedPath = null; let createdId = null;
           try {
             let photo_url = p?.photo_url ?? null;
             const file = f.photo.files[0];
@@ -95,19 +133,28 @@ function productForm(p, cats) {
               const path = `${crypto.randomUUID()}.jpg`;
               const up = await supabase.storage.from('product-photos').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' });
               if (up.error) throw up.error;
+              uploadedPath = path;
               photo_url = supabase.storage.from('product-photos').getPublicUrl(path).data.publicUrl;
             }
             const row = { code: f.code.value.trim(), name: f.name.value.trim(), description: f.description.value.trim(), category_id: f.category_id.value || null, price, photo_url, active: f.active.checked };
             if (isNew) {
               const { data } = await write((s) => s.from('products').insert(row).select('id').single());
-              await rpc('set_product_cost', { p_product_id: data.id, p_cost: cost });
+              createdId = data.id;              await rpc('set_product_cost', { p_product_id: data.id, p_cost: cost });
               if (stock > 0) await rpc('adjust_stock', { p_product_id: data.id, p_delta: stock, p_type: 'INGRESO', p_note: 'Stock inicial' });
             } else {
               await write((s) => s.from('products').update(row).eq('id', p.id));
               await rpc('set_product_cost', { p_product_id: p.id, p_cost: cost });
             }
+            if (uploadedPath && p?.photo_url) {   // al reemplazar la foto, se borra la anterior (no acumular archivos)
+              const old = String(p.photo_url).split('/product-photos/')[1];
+              if (old) supabase.storage.from('product-photos').remove([decodeURIComponent(old.split('?')[0])]).catch(() => {});
+            }
             ok('Producto guardado'); close(true);
-          } catch (x) { show(friendly(x)); }
+          } catch (x) {
+            if (uploadedPath) supabase.storage.from('product-photos').remove([uploadedPath]).catch(() => {});   // no dejar fotos huérfanas
+            if (createdId) await rpc('delete_product', { p_product_id: createdId }).catch(() => {});             // no dejar un producto a medias (sin costo/stock)
+            show(friendly(x));
+          }
         });
       });
       function show(m) { err.textContent = m; err.classList.remove('hidden'); }

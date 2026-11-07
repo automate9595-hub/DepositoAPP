@@ -29,6 +29,13 @@ const P = {
   print: '<path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
   repeat: '<path d="m17 1 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
   alert: '<path d="m10.3 3.9-8.2 14.2A2 2 0 0 0 3.8 21h16.4a2 2 0 0 0 1.7-2.9L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
+  database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  trash: '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  fingerprint: '<path d="M2 12a10 10 0 0 1 18-6M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4M14 13.12c0 2.38 0 6.38-1 8.88M17.29 21.02c.12-.6.43-2.3.5-3.02M8.65 22c.21-.66.45-1.32.57-2M22 12.4a10 10 0 0 1-.5 5M18 12a6 6 0 0 0-9.6-4.8"/>',
   truck: '<path d="M1 3h15v13H1zM16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
 };
 export const icon = (n, extra = '') => `<svg class="i${extra ? ' ' + extra : ''}" viewBox="0 0 24 24" aria-hidden="true">${P[n] ?? ''}</svg>`;
@@ -47,12 +54,12 @@ function toastBox() {
   return box;
 }
 function dismiss(t) { if (!t.isConnected) return; t.classList.add('out'); setTimeout(() => t.remove(), 260); }
-export function toast(msg, kind = '', ms = 4200) {
+export function toast(msg, kind = '', ms = 6000) {
   const t = document.createElement('div');
   t.className = `toast ${kind}`;
   t.textContent = msg;
   toastBox().append(t);
-  setTimeout(() => dismiss(t), kind === 'bad' ? Math.max(ms, 6500) : ms);
+  setTimeout(() => dismiss(t), kind === 'bad' ? Math.max(ms, 9000) : ms);
 }
 // Aviso con botón de acción (por ejemplo "Activar sonido")
 export function toastAction(msg, label, onClick, ms = 12000) {
@@ -64,6 +71,33 @@ export function toastAction(msg, label, onClick, ms = 12000) {
   toastBox().append(t);
   setTimeout(() => dismiss(t), ms);
   return t;
+}
+// Aviso grande y centrado para notificaciones importantes (pedidos nuevos, cambios de estado, etc.)
+function noteBox() {
+  let box = $('.notes');
+  if (!box) { box = document.createElement('div'); box.className = 'notes'; box.setAttribute('role', 'alert'); box.setAttribute('aria-live', 'assertive'); document.body.append(box); }
+  return box;
+}
+const NOTE_ICON = { order: 'clip', alert: 'alert', ready: 'check', soft: 'bell' };
+export function notify(title, body = '', { kind = 'soft', ms = 14000, onClick } = {}) {
+  const box = noteBox();
+  while (box.children.length >= 3) box.firstChild.remove();           // como máximo 3 a la vez
+  const n = document.createElement('div');
+  n.className = `note k-${NOTE_ICON[kind] ? kind : 'soft'}`;
+  n.style.setProperty('--ms', `${ms}ms`);
+  n.innerHTML = `<span class="note-ico">${icon(NOTE_ICON[kind] || 'bell')}</span>
+    <div class="note-body"><b class="note-title"></b><p class="note-text"></p></div>
+    <button type="button" class="note-x" aria-label="Cerrar aviso">${icon('x')}</button><i class="note-bar"></i>`;
+  $('.note-title', n).textContent = title;
+  const text = $('.note-text', n); if (body) text.textContent = body; else text.remove();
+  let timer = setTimeout(() => dismiss(n), ms);
+  const pause = () => { clearTimeout(timer); n.classList.add('hold'); };
+  const resume = () => { n.classList.remove('hold'); timer = setTimeout(() => dismiss(n), 4000); };
+  n.addEventListener('mouseenter', pause); n.addEventListener('mouseleave', resume);
+  $('.note-x', n).addEventListener('click', (e) => { e.stopPropagation(); clearTimeout(timer); dismiss(n); });
+  n.addEventListener('click', () => { clearTimeout(timer); dismiss(n); onClick?.(); });
+  box.append(n);
+  return n;
 }
 export const ok = (m) => toast(m, 'ok');
 export const fail = (m) => toast(m, 'bad');
@@ -86,7 +120,7 @@ export function modal(html, { onMount } = {}) {
     const prevFocus = document.activeElement;
     let closed = false;
     const close = (val) => { if (closed) return; closed = true; ov.classList.add('closing'); setTimeout(() => ov.remove(), 200); document.removeEventListener('keydown', onKey); prevFocus?.focus?.(); resolve(val); };
-    const onKey = (e) => { if (e.key === 'Escape') close(null); };
+    const onKey = (e) => { if (e.key === 'Escape' && [...document.querySelectorAll('.overlay:not(.closing)')].pop() === ov) close(null); };
     ov.addEventListener('click', (e) => { if (e.target === ov) close(null); });
     document.addEventListener('keydown', onKey);
     document.body.append(ov);
@@ -129,8 +163,11 @@ export const errorBox = (msg, retry = true) =>
 
 // Imagen con carga diferida y marcador
 export const img = (url, alt = '') => url
-  ? `<img loading="lazy" decoding="async" alt="${esc(alt)}" src="${esc(url)}" onload="this.classList.add('ok')" onerror="this.remove()">`
+  ? `<img data-pimg loading="lazy" decoding="async" alt="${esc(alt)}" src="${esc(url)}">`
   : '';
+// Sin manejadores inline (compatible con la política de seguridad del navegador): load/error no burbujean, se escuchan en captura
+document.addEventListener('load', (e) => { const t = e.target; if (t instanceof HTMLImageElement && t.hasAttribute('data-pimg')) t.classList.add('ok'); }, true);
+document.addEventListener('error', (e) => { const t = e.target; if (t instanceof HTMLImageElement && t.hasAttribute('data-pimg')) t.remove(); }, true);
 export const photoBox = (url, alt) => `<div class="pimg">${icon('image')}${img(url, alt)}</div>`;
 
 // Cambio de pantalla seguro: ignora respuestas viejas si ya se navegó a otra
@@ -138,11 +175,24 @@ export function viewToken() { const t = { alive: true }; return t; }
 
 // Compresión de imagen en el teléfono antes de subirla (máx. 900 px, JPEG)
 export async function compressImage(file, maxSide = 900, quality = 0.82) {
-  const bmp = await createImageBitmap(file);
-  const k = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
-  const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
+  // Se decodifica con <img> (todos los navegadores aplican la orientación EXIF: fotos del celular derechas)
+  // y, si no se puede, con createImageBitmap pidiendo la orientación del archivo.
+  let src; let sw; let sh; let url;
+  try {
+    url = URL.createObjectURL(file);
+    const im = new Image(); im.decoding = 'async'; im.src = url; await im.decode();
+    src = im; sw = im.naturalWidth; sh = im.naturalHeight;
+  } catch {
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    src = bmp; sw = bmp.width; sh = bmp.height;
+  } finally { if (url) setTimeout(() => URL.revokeObjectURL(url), 5000); }
+  if (!sw || !sh) throw new Error('No se pudo leer la imagen');
+  const k = Math.min(1, maxSide / Math.max(sw, sh));
+  const w = Math.max(1, Math.round(sw * k)), h = Math.max(1, Math.round(sh * k));
   const c = document.createElement('canvas'); c.width = w; c.height = h;
-  c.getContext('2d').drawImage(bmp, 0, 0, w, h);
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);          // los PNG con fondo transparente no quedan negros al pasar a JPEG
+  g.drawImage(src, 0, 0, w, h);
   const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', quality));
   if (!blob) throw new Error('No se pudo procesar la imagen');
   return blob;

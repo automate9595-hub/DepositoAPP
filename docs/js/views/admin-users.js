@@ -48,7 +48,7 @@ function newUserForm() {
     <label class="field"><span>Contraseña inicial (mínimo 8 caracteres)</span><input name="pw" type="text" autocomplete="off" minlength="8" required></label>
     <label class="field"><span>Teléfono</span><input name="phone" inputmode="tel"></label>
     <label class="field"><span>Rol</span><select name="role">${roleOptions('proveedor')}</select></label>
-    <label class="field" id="co"><span>Empresa del proveedor</span><input name="company" maxlength="120"></label>
+    <label class="field" id="co"><span>Nombre del preventista</span><input name="company" maxlength="120" placeholder="Ej.: Juan Pérez"></label>
     <div id="pm" class="hidden"><span class="muted small">Permisos del segundo administrador</span>${permBoxes({ orders: true, inventory: true, products: true, stats: true })}</div>
     <p class="notice bad hidden" id="err" role="alert"></p>
     <div class="row"><button type="button" class="btn grow" data-close>Cancelar</button><button class="btn primary grow">Crear usuario</button></div></form>`, {
@@ -90,7 +90,7 @@ function editUserForm(r, company) {
       <label class="field"><span>Nombre completo</span><input name="name" value="${esc(r.full_name)}" required maxlength="120"></label>
       <label class="field"><span>Teléfono</span><input name="phone" value="${esc(r.phone || '')}" inputmode="tel"></label>
       <label class="field"><span>Rol</span><select name="role">${r.role ? '' : '<option value="">Elegir rol…</option>'}${roleOptions(r.role)}</select></label>
-      <label class="field" id="co"><span>Empresa del proveedor</span><input name="company" value="${esc(company || '')}" maxlength="120"></label>
+      <label class="field" id="co"><span>Nombre del preventista</span><input name="company" value="${esc(company || '')}" maxlength="120"></label>
       <div id="pm" class="hidden"><span class="muted small">Permisos del segundo administrador</span>${permBoxes(r.permissions)}</div>
       <label class="check"><input type="checkbox" name="active" ${r.active ? 'checked' : ''}> Cuenta activa</label>
       <p class="muted small">Si olvidó la contraseña, el usuario puede cambiarla en Cuenta; para restablecerla use Supabase > Authentication > Users.</p>

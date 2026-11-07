@@ -38,13 +38,13 @@ export const statusBadge = (s) => `<span class="status ${STATUS[s]?.cls ?? 's-id
 export const ROLES = {
   admin_principal: 'Administrador principal',
   admin_secundario: 'Segundo administrador',
-  proveedor: 'Proveedor',
+  proveedor: 'Preventista',
   deposito: 'Depósito',
 };
 export const roleLabel = (r) => ROLES[r] ?? 'Sin rol asignado';
 
 export const PERMS = {
-  orders: 'Pedidos', inventory: 'Inventario', products: 'Productos', customers: 'Clientes y cuentas', stats: 'Estadísticas', users: 'Usuarios', audit: 'Auditoría',
+  orders: 'Pedidos', inventory: 'Inventario', products: 'Productos', customers: 'Clientes y cuentas', stats: 'Estadísticas', cash: 'Caja y arqueo', users: 'Usuarios', audit: 'Auditoría',
 };
 
 // "Pedido número 12 del cliente Juan Pérez"

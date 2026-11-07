@@ -67,7 +67,7 @@ function productForm(p, cats) {
       ${isNew ? '<label class="field"><span>Stock inicial (opcional)</span><input name="stock" inputmode="numeric" value="0"></label>' : ''}
       <div class="field"><span>Fotografía</span><div class="pimg pvbox" id="pv">${icon('image')}${img(p?.photo_url, '')}</div>
         <input name="photo" type="file" accept="image/*" style="margin-top:8px"><p class="small muted">Así se verá en el catálogo: centrada y completa. Si sacó la foto con el celular, se endereza sola.</p></div>
-      <label class="check"><input type="checkbox" name="active" ${p?.active === false ? '' : 'checked'}> Producto activo (visible para proveedores)</label>
+      <label class="check"><input type="checkbox" name="active" ${p?.active === false ? '' : 'checked'}> Producto activo (visible para preventistas)</label>
       <p class="notice bad hidden" id="err" role="alert"></p>
       <div class="row"><button type="button" class="btn grow" data-close>Cancelar</button><button class="btn primary grow">Guardar</button></div>
       ${!isNew && can('products') ? `<button type="button" class="btn danger block" id="del">${icon('trash')} Eliminar producto</button>` : ''}

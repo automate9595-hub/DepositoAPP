@@ -82,7 +82,7 @@ export async function statsView(el) {
         <div class="seg" id="pm" style="min-width:230px">${[['revenue', 'Ventas'], ['units', 'Unidades'], ['profit', 'Ganancia']].map(([k, l]) => `<button class="${k === prodMetric ? 'on' : ''}" data-m="${k}">${l}</button>`).join('')}</div></div>
         <div id="prod">${hbars(prodSorted.map((p) => ({ name: p.name, value: Number(p[prodMetric]) })), { fmt: pm[1], color: pm[2] })}</div></div>
       <div class="two">
-        <div class="card stack"><h3>Proveedores</h3>${hbars(cur.by_supplier.slice(0, 7).map((s) => ({ name: s.name, value: Number(s.revenue), sub: `${s.orders} pedido${s.orders === 1 ? '' : 's'} · ganancia ${money(s.profit)}` })), { fmt: money, color: 'var(--ch6)' })}</div>
+        <div class="card stack"><h3>Preventistas</h3>${hbars(cur.by_supplier.slice(0, 7).map((s) => ({ name: s.name, value: Number(s.revenue), sub: `${s.orders} pedido${s.orders === 1 ? '' : 's'} · ganancia ${money(s.profit)}` })), { fmt: money, color: 'var(--ch6)' })}</div>
         <div class="card stack"><h3>Valor del inventario</h3>
           <div class="kv"><span class="muted">A precio de costo</span><b class="mono">${money(sv.cost)}</b><span class="muted">A precio de venta</span><b class="mono">${money(sv.sale)}</b>
           <span class="muted">Ganancia potencial</span><b class="mono" style="color:var(--ok)">${money(Number(sv.sale) - Number(sv.cost))}</b></div>

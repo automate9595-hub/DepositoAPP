@@ -185,7 +185,7 @@ async function orderDetail(el, ctx, id) {
       $('#cx', el)?.addEventListener('click', async (e) => {
         const btn = e.currentTarget;
         if (!(await confirmBox('Cancelar pedido', 'El pedido pendiente se cancelará.', { danger: true, okText: 'Cancelar pedido' }))) return;
-        await busy(btn, async () => { try { await rpc('cancel_order', { p_order_id: id, p_reason: 'Cancelado por el proveedor' }); ok('Pedido cancelado'); load(); } catch (x) { fail(friendly(x)); } });
+        await busy(btn, async () => { try { await rpc('cancel_order', { p_order_id: id, p_reason: 'Cancelado por el preventista' }); ok('Pedido cancelado'); load(); } catch (x) { fail(friendly(x)); } });
       });
     } catch (e) { el.innerHTML = errorBox(friendly(e)); $('[data-retry]', el)?.addEventListener('click', load); }
   }

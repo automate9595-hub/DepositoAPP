@@ -17,7 +17,7 @@ export function orderCard(o, extra = '') {
   return `<div class="card click" data-order="${o.id}">
     <div class="row between"><b>${orderTitle(o)}</b>${statusBadge(o.status)}</div>
     <div class="ellipsis">del cliente <b>${esc(orderClient(o))}</b></div>
-    ${o.suppliers ? `<div class="small ellipsis"><span class="muted">Proveedor:</span> <b>${esc(one(o.suppliers)?.company_name ?? '')}</b></div>` : ''}
+    ${o.suppliers ? `<div class="small ellipsis"><span class="muted">Preventista:</span> <b>${esc(one(o.suppliers)?.company_name ?? '')}</b></div>` : ''}
     <div class="row between muted small"><span>${dateOnly(o.created_at)} · ${timeOnly(o.created_at)}</span>
     <b class="mono" style="color:var(--text)">${money(o.total_delivered ?? o.total_approved ?? o.total_requested)}</b></div>${extra}</div>`;
 }
@@ -32,7 +32,7 @@ export function summaryHtml(o) {
     <div class="kv small"><span class="muted">Cliente</span><span>${esc(orderClient(o))}</span><span class="muted">Pedido realizado por</span><b>${esc(o.supplier)}</b>
       <span class="muted">Fecha</span><span>${dateOnly(o.created_at)}</span><span class="muted">Hora</span><span>${timeOnly(o.created_at)}</span>
       ${o.delivered_at ? `<span class="muted">Entregado</span><span>${dateTime(o.delivered_at)}</span>` : ''}</div>
-    ${o.supplier_notes ? `<p class="small"><span class="muted">Nota del proveedor:</span> ${esc(o.supplier_notes)}</p>` : ''}
+    ${o.supplier_notes ? `<p class="small"><span class="muted">Nota del preventista:</span> ${esc(o.supplier_notes)}</p>` : ''}
     ${o.admin_notes ? `<p class="small"><span class="muted">Observaciones:</span> ${esc(o.admin_notes)}</p>` : ''}</div>`;
 }
 

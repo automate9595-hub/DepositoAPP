@@ -23,7 +23,7 @@ export async function adminOrdersView(el, ctx) {
     await busy(btn, async () => {
       try {
         const all = await fetchAll((a, b) => read((s) => { let r = s.from('orders').select('order_number,status,customer_name,total_requested,total_approved,total_delivered,created_at,delivered_at,suppliers(company_name)').order('created_at', { ascending: false }).range(a, b); if (st) r = r.eq('status', st); return r; }));
-        downloadCsv(`pedidos-${st ? st.toLowerCase() : 'todos'}-${stamp()}.csv`, ['Pedido', 'Fecha', 'Estado', 'Cliente', 'Proveedor', 'Total pedido', 'Total aprobado', 'Total entregado', 'Entregado el'],
+        downloadCsv(`pedidos-${st ? st.toLowerCase() : 'todos'}-${stamp()}.csv`, ['Pedido', 'Fecha', 'Estado', 'Cliente', 'Preventista', 'Total pedido', 'Total aprobado', 'Total entregado', 'Entregado el'],
           all.map((o) => [o.order_number, dateTime(o.created_at), statusLabel(o.status), o.customer_name || 'Cliente público general', one(o.suppliers)?.company_name || '', o.total_requested, o.total_approved ?? '', o.total_delivered ?? '', o.delivered_at ? dateTime(o.delivered_at) : '']));
         ok(`Se exportaron ${all.length} pedidos`);
       } catch (x) { fail(friendly(x)); }
@@ -114,7 +114,7 @@ async function detail(el, ctx, id) {
     run('#ap', async () => { await rpc('approve_order', { p_order_id: id, p_items: items(), p_notes: obs() }); ok('Pedido aprobado y stock reservado'); await load(); });
     run('#rj', async () => { const r = await askText('Rechazar pedido', 'Motivo del rechazo', { okText: 'Rechazar' }); if (!r) return; await rpc('reject_order', { p_order_id: id, p_reason: r }); ok('Pedido rechazado'); await load(); });
     $('#addp', el)?.addEventListener('click', async () => {
-      const picks = await pickProducts({ title: 'Agregar productos al pedido', hint: pending ? 'Se suman a lo pedido por el proveedor. El stock se reserva al aprobar.' : 'Se suman al pedido y se reserva el stock enseguida.' });
+      const picks = await pickProducts({ title: 'Agregar productos al pedido', hint: pending ? 'Se suman a lo pedido por el preventista. El stock se reserva al aprobar.' : 'Se suman al pedido y se reserva el stock enseguida.' });
       if (!picks) return;
       try { await rpc('admin_add_order_items', { p_order_id: id, p_items: picks.map((p) => ({ product_id: p.product_id, qty: p.qty })) }); ok(`${picks.length} producto${picks.length === 1 ? '' : 's'} agregado${picks.length === 1 ? '' : 's'} al pedido`); await load(); }
       catch (x) { fail(friendly(x)); }

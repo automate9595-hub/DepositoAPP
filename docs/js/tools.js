@@ -33,12 +33,17 @@ export async function shareOrder(o) {
   } catch (e) { if (e?.name === 'AbortError') return; }
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
 }
-export function printOrder(o) {
+export function printHtml(html) {
   const f = document.createElement('iframe');
   f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
-  f.srcdoc = remitoHtml(o);
+  f.srcdoc = html;
   f.onload = () => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch { fail('No se pudo abrir la impresión en este dispositivo.'); } setTimeout(() => f.remove(), 60000); };
   document.body.append(f);
+}
+export const printOrder = (o) => printHtml(remitoHtml(o));
+export async function shareText(title, text) {
+  try { if (navigator.share) { await navigator.share({ title, text }); return; } } catch (e) { if (e?.name === 'AbortError') return; }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
 }
 export const orderToolsHtml = () => `<div class="row"><button class="btn grow" type="button" data-share>${icon('share')} Compartir</button><button class="btn grow" type="button" data-print>${icon('print')} Imprimir</button></div>`;
 export function bindOrderTools(root, o) {

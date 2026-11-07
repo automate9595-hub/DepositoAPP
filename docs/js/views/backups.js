@@ -235,7 +235,7 @@ export async function backupsView(el) {
       </div>
       <label class="check"><input id="bk-safe" type="checkbox" checked> Descargar antes una copia de seguridad de los datos actuales</label>
       <label class="check" id="bk-photo-row"><input id="bk-photos" type="checkbox" checked> <span id="bk-photo-label">Restaurar también las fotografías</span></label>
-      <p class="notice small">Las contraseñas no están en el respaldo. Cada usuario se vincula con su cuenta de Supabase por correo: si falta alguna cuenta de proveedor o de depósito, creala primero en Administración › Usuarios y volvé a importar.</p>
+      <p class="notice small">Las contraseñas no están en el respaldo. Cada usuario se vincula con su cuenta de Supabase por correo: si falta alguna cuenta de preventista o de depósito, creala primero en Administración › Usuarios y volvé a importar.</p>
       <div class="bk-prog hidden" aria-live="polite"><div class="bk-bar"><i></i></div><p class="bk-prog-msg small muted"></p></div>
       <button class="btn primary block" id="bk-run">${icon('refresh')} Restaurar respaldo</button>
       <div id="bk-report"></div>

@@ -19,7 +19,7 @@ export function orderText(o) {
   return [
     `*Pedido número ${o.order_number}*`,
     `Cliente: ${orderClient(o)}`,
-    o.supplier ? `Proveedor: ${o.supplier}` : null,
+    o.supplier ? `Preventista: ${o.supplier}` : null,
     `Fecha: ${dateOnly(o.created_at)} ${timeOnly(o.created_at)}`,
     `Estado: ${statusLabel(o.status)}`,
     '',
@@ -37,7 +37,7 @@ export function remitoHtml(o) {
 table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ccc;padding:6px 4px;text-align:left}th{background:#f1f1f1}.n{text-align:right;white-space:nowrap}
 .tot{margin-top:14px;text-align:right;font-size:17px;font-weight:700}.firma{margin-top:60px;display:flex;gap:40px}.firma div{flex:1;border-top:1px solid #111;padding-top:4px;font-size:12px}</style></head><body>
 <h1>Pedido número ${esc(o.order_number)}</h1>
-<p><b>Cliente:</b> ${esc(orderClient(o))}</p>${o.supplier ? `<p><b>Proveedor:</b> ${esc(o.supplier)}</p>` : ''}
+<p><b>Cliente:</b> ${esc(orderClient(o))}</p>${o.supplier ? `<p><b>Preventista:</b> ${esc(o.supplier)}</p>` : ''}
 <p><b>Fecha:</b> ${esc(dateOnly(o.created_at))} ${esc(timeOnly(o.created_at))} · <b>Estado:</b> ${esc(statusLabel(o.status))}</p>
 <table><thead><tr><th>Código</th><th>Producto</th><th class="n">Cant.</th><th class="n">Precio</th><th class="n">Subtotal</th></tr></thead><tbody>${rows}</tbody></table>
 <div class="tot">Total: ${esc(money(finalTotal(o)))}</div>

@@ -14,6 +14,7 @@ import { productsView, inventoryView } from './views/admin-catalog.js';
 import { usersView, auditView } from './views/admin-users.js';
 import { backupsView } from './views/backups.js';
 import { statsView } from './views/stats.js';
+import { cashView } from './views/cash.js';
 import { customersView } from './views/customers.js';
 import { warehouseOrdersView } from './views/warehouse.js';
 import { cartLines } from './cart.js';
@@ -43,6 +44,7 @@ const NAV = {
     { path: 'productos', label: 'Productos', icon: 'box', render: productsView, perm: 'products' },
     { path: 'inventario', label: 'Inventario', icon: 'layers', render: inventoryView, perm: 'inventory' },
     { path: 'usuarios', label: 'Usuarios', icon: 'users', render: usersView, perm: 'users' },
+    { path: 'caja', label: 'Caja', icon: 'wallet', render: cashView, perm: 'cash' },
     { path: 'estadisticas', label: 'Estadísticas', icon: 'chart', render: statsView, perm: 'stats' },
     { path: 'auditoria', label: 'Auditoría', icon: 'shield', render: auditView, perm: 'audit' },
     { path: 'respaldos', label: 'Respaldos', icon: 'download', render: backupsView, perm: 'audit' },

@@ -75,7 +75,7 @@ const corsFor = (origin: string | null) => ({
 const rest = async (path: string, init: RequestInit = {}) => {
   const r = await fetch(`${url}/rest/v1/${path}`, { ...init, headers: { ...H, ...(init.headers || {}) } });
   const t = await r.text();
-  if (!r.ok) throw new Error(`rest ${r.status}`);
+  if (!r.ok) throw new Error(`rest ${r.status} ${t.slice(0, 200)}`);
   return t ? JSON.parse(t) : null;
 };
 
@@ -84,7 +84,20 @@ Deno.serve(async (req) => {
   const cors = corsFor(origin);
   const out = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'content-type': 'application/json' } });
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
-  if (req.method === 'GET') return out({ ok: true, service: 'deposito-passkey' });   // para comprobar en el navegador que está publicada
+  if (req.method === 'GET') {   // para comprobar en el navegador que está publicada; con ?diag=1 revisa cada pieza (sin datos sensibles)
+    if (!new URL(req.url).searchParams.has('diag')) return out({ ok: true, service: 'deposito-passkey' });
+    const probe = async (path: string) => {
+      try { const r = await fetch(`${url}${path}`, { headers: H }); const t = await r.text(); return { status: r.status, detalle: r.ok ? 'ok' : t.slice(0, 200) }; }
+      catch (e) { return { status: 0, detalle: (e as Error).message }; }
+    };
+    return out({
+      version: 'v16',
+      secretos: { SUPABASE_URL: !!url, SUPABASE_SERVICE_ROLE_KEY: !!key, clave_formato_jwt: !!key && key.startsWith('eyJ') },
+      tabla_passkey_challenges: await probe('/rest/v1/passkey_challenges?select=id&limit=1'),
+      tabla_passkeys: await probe('/rest/v1/passkeys?select=id&limit=1'),
+      api_de_usuarios: await probe('/auth/v1/admin/users?per_page=1'),
+    });
+  }
   if (req.method !== 'POST') return out({ error: 'Método no permitido' }, 405);
   if (!url || !key) return out({ error: 'Faltan los secretos del servidor' }, 500);
   if (!origin || (allowed.length && !allowed.includes(origin))) return out({ error: 'Origen no permitido' }, 403);
@@ -133,7 +146,8 @@ Deno.serve(async (req) => {
     return out({ error: 'Acción desconocida' }, 400);
   } catch (e) {
     // Cualquier fallo de verificación se informa igual: no se revela qué paso falló
-    console.error('passkey', (e as Error).message);
+    console.error('passkey', body?.action, (e as Error).message);
+    if (body?.action === 'challenge') return out({ error: `Falla del servidor al preparar el ingreso: ${(e as Error).message}` }, 500);   // error de instalación, no de la persona
     return out({ error: 'No se pudo verificar la identidad' }, 401);
   }
 });

@@ -199,3 +199,12 @@ Desde **Administración › Respaldos › Importar** se puede volver a cargar el
 **Ingreso con huella o rostro sin correo ni contraseña:** la clave pública de cada dispositivo queda registrada en la base (tabla `passkeys`). En la pantalla de ingreso siempre aparece «Ingresar con huella o rostro»; el servidor valida la firma y abre la sesión. «Cerrar sesión» cierra la sesión de verdad y la huella sigue registrada. Para quitarla: Cuenta › Desactivar.
 
 **Eliminar productos:** se pueden eliminar aunque hayan estado en pedidos ya entregados, cancelados o rechazados (esos pedidos conservan nombre, código y precio). Solo se bloquea si el producto está en un pedido en curso.
+
+## Novedades v18
+
+**Instalación:** Supabase › SQL Editor: ejecutar `14_caja_y_preventista.sql` (o el archivo `EJECUTAR_EN_SUPABASE.sql` completo). Luego publicar la app.
+
+* **Caja y arqueo** (menú «Caja»): para el administrador principal y para los segundos administradores a los que se les active el permiso **Caja y arqueo** (Usuarios › editar › Permisos). Muestra, por día: total cobrado, ingresos por medio de pago (anillo), últimos 7 días (tocar un día para verlo), cobros por hora y el detalle de cobros con cliente, preventista y quién cobró. El **arqueo de efectivo** guía en 3 pasos (fondo inicial, retiros/gastos, efectivo contado), calcula el efectivo esperado y avisa si la caja cuadra, sobra o falta. «Cerrar caja» guarda el cierre; se puede actualizar si entran cobros después. **Enviar comprobante** (WhatsApp u otra app), **imprimir / guardar PDF** y **descargar Excel (CSV)**.
+  * Qué cuenta como ingreso: cobros registrados al entregar un pedido (incluye cliente público) y pagos a cuenta corriente. Los pagos hechos al entregar no se cuentan dos veces.
+  * Los días se calculan con la hora de Argentina.
+* **Preventista**: «Proveedor» pasó a llamarse «Preventista» en toda la pantalla; el alta de usuario pide «Nombre del preventista», y el aviso a Central dice «el preventista X hizo el pedido».

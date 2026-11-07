@@ -108,3 +108,9 @@ revoke all on function public.my_passkeys() from public, anon;
 grant execute on function public.register_passkey(text, text, integer, text) to authenticated;
 grant execute on function public.delete_passkey(text) to authenticated;
 grant execute on function public.my_passkeys() to authenticated;
+
+-- La Edge Function (rol service_role) debe poder usar estas tablas y leer perfiles.
+-- Los proyectos nuevos de Supabase ya no entregan este permiso automáticamente en las tablas nuevas.
+grant usage on schema public to service_role;
+grant all on public.passkeys, public.passkey_challenges to service_role;
+grant select on public.profiles to service_role;

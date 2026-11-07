@@ -27,7 +27,7 @@ export async function customersView(el, ctx) {
     const t = q.trim().toLowerCase();
     const v = rows.filter((c) => (!filter || c.account_status === filter) && (!t || `${c.name} ${c.phone || ''} ${c.tax_id || ''} ${c.supplier_name || ''}`.toLowerCase().includes(t)));
     list.innerHTML = v.length ? v.map((c) => `<div class="card click row" data-id="${c.id}"><div class="grow"><div class="row"><b class="ellipsis">${esc(c.name)}</b>${c.active ? '' : '<span class="status s-idle">Inactivo</span>'}</div>
-      <div class="muted small ellipsis">${[c.phone, isAdm() ? (c.supplier_name ? 'Proveedor: ' + c.supplier_name : c.is_public ? '' : 'Todos los proveedores') : ''].filter(Boolean).map(esc).join(' · ') || '&nbsp;'}</div>
+      <div class="muted small ellipsis">${[c.phone, isAdm() ? (c.supplier_name ? 'Preventista: ' + c.supplier_name : c.is_public ? '' : 'Todos los preventistas') : ''].filter(Boolean).map(esc).join(' · ') || '&nbsp;'}</div>
       <div style="margin-top:4px">${badge(c)}${c.account_status === 'VENCIDO' ? `<span class="muted small"> · plazo ${c.credit_days} días</span>` : ''}</div></div>
       <div class="right">${balanceHtml(c)}</div></div>`).join('') : emptyBox('No hay clientes para mostrar.');
   };
@@ -81,7 +81,7 @@ async function detail(el, ctx, id) {
         <span class="muted">Plazo de pago</span><span>${c.credit_days} días</span></div>` : `<p class="muted small">${c.is_public ? 'Venta de contado: no lleva cuenta corriente.' : 'La cuenta de este cliente no está disponible para usted.'}</p>`}
         <div class="kv small">${c.phone ? `<span class="muted">Teléfono</span><span>${esc(c.phone)}</span>` : ''}${c.email ? `<span class="muted">Correo</span><span>${esc(c.email)}</span>` : ''}
         ${c.address ? `<span class="muted">Dirección</span><span>${esc(c.address)}</span>` : ''}${c.tax_id ? `<span class="muted">CUIT / DNI</span><span>${esc(c.tax_id)}</span>` : ''}
-        ${adm ? `<span class="muted">Proveedor</span><span>${esc(c.supplier_name || (c.is_public ? '—' : 'Todos los proveedores'))}</span>` : ''}</div>
+        ${adm ? `<span class="muted">Preventista</span><span>${esc(c.supplier_name || (c.is_public ? '—' : 'Todos los proveedores'))}</span>` : ''}</div>
         ${c.notes ? `<p class="small"><span class="muted">Notas:</span> ${esc(c.notes)}</p>` : ''}
         ${adm && c.has_account ? `<div class="row wrap"><button class="btn accent grow" id="pay">Registrar pago</button><button class="btn grow" id="adj">Ajuste</button></div>` : ''}
         ${editable ? '<button class="btn block" id="ed">Editar datos</button>' : ''}

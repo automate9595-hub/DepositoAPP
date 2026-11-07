@@ -104,7 +104,7 @@ function productForm(p, cats) {
         f.name.focus();
       });
       $('#del', ov)?.addEventListener('click', async (e) => {
-        if (!(await confirmBox('Eliminar producto', `¿Eliminar «${p.name}»? Solo se puede si nunca estuvo en un pedido. Se borran también su stock, su costo y su foto. Esta acción no se puede deshacer.`, { okText: 'Eliminar', danger: true }))) return;
+        if (!(await confirmBox('Eliminar producto', `¿Eliminar «${p.name}»? Se borran también su stock, su costo y su foto. Los pedidos ya entregados o cancelados conservan su nombre, código y precio. No se puede eliminar si está en un pedido en curso. Esta acción no se puede deshacer.`, { okText: 'Eliminar', danger: true }))) return;
         await busy(e.currentTarget, async () => {
           try {
             const res = await rpc('delete_product', { p_product_id: p.id });

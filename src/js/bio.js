@@ -82,22 +82,43 @@ export async function bioSupported() {
 }
 const rand = (n = 32) => crypto.getRandomValues(new Uint8Array(n));
 
-export async function bioEnable(user) {
-  const uidBytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(user.id)));
+const uuidBytes = (uuid) => Uint8Array.from(String(uuid).replace(/-/g, '').match(/../g).map((h) => parseInt(h, 16)));
+export const bioServerRegistered = (uid) => !!load()[uid]?.server;
+export const bioCredId = (uid) => load()[uid]?.id || null;
+
+// register: función que guarda la clave pública en la base (RPC register_passkey); la entrega la pantalla de la cuenta
+export async function bioEnable(user, { register, label } = {}) {
   const cred = await navigator.credentials.create({ publicKey: {
     rp: { name: RP_NAME, id: location.hostname },
-    user: { id: uidBytes, name: user.email || user.id, displayName: user.full_name || user.email || 'Usuario' },
+    user: { id: uuidBytes(user.id), name: user.email || user.id, displayName: user.full_name || user.email || 'Usuario' },
     challenge: rand(),
     pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
+    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'required', requireResidentKey: true },
     timeout: 60000, attestation: 'none',
   } });
   const r = cred?.response; const spki = r?.getPublicKey?.();
   if (!spki) throw new Error('Este dispositivo no permite guardar la clave de acceso. Actualice el navegador.');
-  const o = load();
-  o[user.id] = { email: user.email || '', id: b64u(cred.rawId), spki: b64u(spki), alg: r.getPublicKeyAlgorithm?.() ?? -7, at: new Date().toISOString(), fails: 0 };
-  save(o);
-  try { await bioVerify(user.id); } catch (e) { bioDisable(user.id); throw e; }   // prueba inmediata: si no funciona, no se deja activado
+  const rec = { email: user.email || '', id: b64u(cred.rawId), spki: b64u(spki), alg: r.getPublicKeyAlgorithm?.() ?? -7, at: new Date().toISOString(), server: false };
+  const o = load(); o[user.id] = rec; save(o);
+  try {
+    await bioVerify(user.id);                                    // prueba inmediata en este dispositivo
+    if (register) { await register({ id: rec.id, public_key: rec.spki, alg: rec.alg, label }); o[user.id].server = true; save(o); }   // queda registrada en la base
+  } catch (e) { bioDisable(user.id); throw e; }
+}
+
+// Ingreso sin correo ni contraseña: el servidor valida la firma y devuelve un token de un solo uso (token_hash)
+export async function passkeyLogin({ baseUrl, anonKey }) {
+  const call = async (body) => {
+    const res = await fetch(`${baseUrl}/functions/v1/deposito-passkey`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: anonKey, Authorization: `Bearer ${anonKey}` }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(data?.error || `Error ${res.status}`), { status: res.status });
+    return data;
+  };
+  const ch = await call({ action: 'challenge' });
+  const a = await navigator.credentials.get({ publicKey: { challenge: fromB64u(ch.challenge), rpId: location.hostname, timeout: 60000, userVerification: 'required' } });
+  const r = a.response;
+  const out = await call({ action: 'login', id: ch.id, credential_id: b64u(a.rawId), authenticator_data: b64u(r.authenticatorData), client_data_json: b64u(r.clientDataJSON), signature: b64u(r.signature) });
+  return out.token_hash;
 }
 
 export async function bioVerify(uid) {

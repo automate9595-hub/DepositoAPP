@@ -186,3 +186,16 @@ Desde **Administración › Respaldos › Importar** se puede volver a cargar el
 * **Seguridad**: ver `AUDITORIA_SEGURIDAD.md`.
 
 **Huella: tiempo de bloqueo.** Mi cuenta › Acceso con huella o rostro › «Volver a pedir la huella después de» (5, 10, 15, 30 o 60 minutos; por defecto 10). Aplica al volver a la app y también al abrirla de nuevo: si estuvo menos de ese tiempo fuera, no la vuelve a pedir.
+
+## Novedades v13
+
+**Instalación (en este orden):**
+1. Supabase › SQL Editor: ejecutar `13_borrar_productos_y_huella.sql` (o el archivo `EJECUTAR_EN_SUPABASE.sql` completo).
+2. Publicar la función del ingreso con huella: `supabase functions deploy deposito-passkey --no-verify-jwt`
+   (o desde el panel: Edge Functions › crear `deposito-passkey`, pegar `index.ts` y `verify.js`, y desactivar «Verify JWT»).
+   Opcional: crear el secreto `ALLOWED_ORIGINS` con la dirección de tu app (por ejemplo `https://tu-usuario.github.io`).
+3. Publicar la app. En cada dispositivo: Cuenta › Acceso con huella o rostro › **Activar** (si ya estaba activado: «Reactivar»).
+
+**Ingreso con huella o rostro sin correo ni contraseña:** la clave pública de cada dispositivo queda registrada en la base (tabla `passkeys`). En la pantalla de ingreso siempre aparece «Ingresar con huella o rostro»; el servidor valida la firma y abre la sesión. «Cerrar sesión» cierra la sesión de verdad y la huella sigue registrada. Para quitarla: Cuenta › Desactivar.
+
+**Eliminar productos:** se pueden eliminar aunque hayan estado en pedidos ya entregados, cancelados o rechazados (esos pedidos conservan nombre, código y precio). Solo se bloquea si el producto está en un pedido en curso.

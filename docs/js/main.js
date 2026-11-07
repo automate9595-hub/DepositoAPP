@@ -2,7 +2,7 @@ import { supabase, configured, config, libError, storedSession, withTimeout } fr
 import { state, bus, initCart, cacheProfile, cachedProfile, clearProfileCache, role, can } from './state.js';
 import { setLocale, esc } from './format.js';
 import { icon, logoSvg, $, $$, toast, toastAction, notify, errorBox, spinner, themeButton, soundButton, initEffects } from './ui.js';
-import { bioEnabled, bioLock, recentlyActive, touchActive, softLockGet, softLockSet } from './bio.js';
+import { bioEnabled, bioLock, bioServerRegistered, recentlyActive, touchActive, softLockGet, softLockSet } from './bio.js';
 import { initTheme } from './theme.js';
 import { soundEnabled, soundChoiceMade, setSound, playSound, kindFor } from './sound.js';
 import { friendly, read } from './api.js';
@@ -125,7 +125,7 @@ async function refreshUnread() {
 }
 bus.on('unread', (n) => { state.unread = Math.max(0, n); updateBell(); });
 bus.on('cart', renderNav);
-bus.on('logout', () => { if (state.user && bioEnabled(state.user.id)) softLogout(); else logout(); });   // con huella activada, salir solo bloquea
+bus.on('logout', () => { if (state.user && bioEnabled(state.user.id) && !bioServerRegistered(state.user.id)) softLogout(); else logout(); });   // con la huella registrada en el servidor, salir cierra la sesión y se vuelve a entrar con la huella   // con huella activada, salir solo bloquea
 bus.on('fullLogout', () => logout());
 bus.on('refresh-unread', () => refreshUnread());
 

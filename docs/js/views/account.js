@@ -5,7 +5,8 @@ import { esc, dateTime, roleLabel } from '../format.js';
 import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner } from '../ui.js';
 import { themePref, setTheme } from '../theme.js';
 import { soundEnabled, setSound, previewSound } from '../sound.js';
-import { bioSupported, bioEnabled, bioEnable, bioDisable, bioVerify, bioLockMinutes, setBioLockMinutes, LOCK_CHOICES } from '../bio.js';
+import { bioSupported, bioEnabled, bioEnable, bioDisable, bioVerify, bioLockMinutes, setBioLockMinutes, bioServerRegistered, bioCredId, LOCK_CHOICES } from '../bio.js';
+import { config } from '../supa.js';
 
 const APP_VERSION = (() => { try { return new URL(import.meta.url).searchParams.get('v') || ''; } catch { return ''; } })();
 
@@ -60,23 +61,39 @@ export async function accountView(el) {
       box.innerHTML = `<h3>${icon('fingerprint')} Acceso con huella o rostro</h3><p class="muted small">Este dispositivo o navegador no ofrece huella ni reconocimiento facial para aplicaciones web (hace falta una conexión segura https y un bloqueo de pantalla configurado en el teléfono o la computadora).</p>`;
       return;
     }
-    const on = bioEnabled(p.id);
+    const on = bioEnabled(p.id); const server = bioServerRegistered(p.id);
+    const device = /Android/i.test(navigator.userAgent) ? 'Android' : /iPhone|iPad/i.test(navigator.userAgent) ? 'iPhone/iPad' : /Windows/i.test(navigator.userAgent) ? 'Windows' : /Mac/i.test(navigator.userAgent) ? 'Mac' : 'Dispositivo';
     box.innerHTML = `<h3>${icon('fingerprint')} Acceso con huella o rostro</h3>
-      <p class="muted small">${on ? 'Activado en este dispositivo: se pide huella o rostro si estuvo fuera de la aplicación más del tiempo elegido.' : 'Entre más rápido y seguro: el teléfono verifica su huella o su rostro con el sensor o la cámara del dispositivo. La aplicación nunca recibe su cara ni su huella.'}</p>
+      <p class="muted small">${on && server ? 'Activado y registrado en el sistema: en la pantalla de ingreso aparece «Ingresar con huella o rostro» y entra sin escribir correo ni contraseña. Además se pide la huella si estuvo fuera de la aplicación más del tiempo elegido.' : on ? 'Esta activación es antigua: solo bloquea la aplicación. Reactívela para poder ingresar con la huella sin correo ni contraseña.' : 'Ingrese más rápido y seguro: el teléfono verifica su huella o su rostro con el sensor o la cámara. La aplicación nunca recibe su cara ni su huella.'}</p>
       ${on ? `<label class="field"><span>Volver a pedir la huella después de</span><select id="bm">${LOCK_CHOICES.map((m) => `<option value="${m}" ${m === bioLockMinutes() ? 'selected' : ''}>${m} minutos fuera de la aplicación</option>`).join('')}</select></label>
-        <div class="row"><button type="button" class="btn grow" id="bt">Probar ahora</button><button type="button" class="btn danger grow" id="bd">Desactivar</button></div>`
+        <div class="row"><button type="button" class="btn grow" id="bt">Probar ahora</button>${server ? '' : '<button type="button" class="btn primary grow" id="be">Reactivar</button>'}<button type="button" class="btn danger grow" id="bd">Desactivar</button></div>`
            : `<button type="button" class="btn primary block" id="be">${icon('fingerprint')} Activar en este dispositivo</button>`}
-      <p class="muted small">Al tocar «Cerrar sesión», la cuenta queda bloqueada y en la pantalla de ingreso aparece «Ingresar con huella o rostro». Allí también puede elegir «Usar otra cuenta o contraseña» para cerrar la sesión por completo. Cada dispositivo se activa por separado.</p>`;
+      <p class="muted small">Cada dispositivo se activa por separado. Si pierde el teléfono, desactive la huella desde otro dispositivo en esta misma pantalla.</p>`;
     $('#be', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
-      try { await bioEnable({ id: p.id, email: p.email, full_name: p.full_name }); ok('Acceso biométrico activado'); }
-      catch (x) { fail(x?.name === 'NotAllowedError' ? 'Se canceló la verificación. No se activó.' : (x?.message || 'No se pudo activar el acceso biométrico.')); }
+      try {
+        if (on) bioDisable(p.id);
+        await bioEnable({ id: p.id, email: p.email, full_name: p.full_name }, {
+          label: device,
+          register: (k) => rpc('register_passkey', { p_id: k.id, p_public_key: k.public_key, p_alg: k.alg, p_label: k.label }),
+        });
+        ok('Huella activada y registrada');
+        // Comprueba que la función del servidor esté publicada
+        try {
+          const r = await fetch(`${String(config.SUPABASE_URL).replace(/\/+$/, '')}/functions/v1/deposito-passkey`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: config.SUPABASE_ANON_KEY, Authorization: `Bearer ${config.SUPABASE_ANON_KEY}` }, body: JSON.stringify({ action: 'challenge' }) });
+          if (r.status === 404) fail('La huella quedó registrada, pero falta publicar la función «deposito-passkey» en Supabase para entrar sin contraseña.');
+        } catch { /* sin conexión: se verá al ingresar */ }
+      } catch (x) { fail(x?.name === 'NotAllowedError' ? 'Se canceló la verificación. No se activó.' : (friendly(x) || x?.message || 'No se pudo activar el acceso biométrico.')); }
       renderBio();
     }));
     $('#bt', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
       try { await bioVerify(p.id); ok('Verificación correcta'); } catch (x) { fail(x?.name === 'NotAllowedError' ? 'Se canceló la verificación.' : 'No se pudo verificar la identidad.'); }
     }));
     $('#bm', box)?.addEventListener('change', (e) => { setBioLockMinutes(Number(e.target.value)); ok(`Se pedirá la huella tras ${e.target.value} minutos fuera de la aplicación`); });
-    $('#bd', box)?.addEventListener('click', () => { bioDisable(p.id); ok('Acceso biométrico desactivado'); renderBio(); });
+    $('#bd', box)?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
+      const id = bioCredId(p.id);
+      if (id) await rpc('delete_passkey', { p_id: id }).catch(() => {});   // se borra también del sistema
+      bioDisable(p.id); ok('Acceso biométrico desactivado'); renderBio();
+    }));
   }
   $('#pf', el).addEventListener('submit', async (e) => {
     e.preventDefault();

@@ -16,20 +16,30 @@ const marginOf = (p) => (Number(p.price) > 0 ? ((Number(p.price) - costOf(p)) / 
 
 // ---------------- Productos ----------------
 export async function productsView(el) {
-  let page = 0; let q = ''; let rows = []; let gen = 0; let cats = [];
+  let page = 0; let q = ''; let rows = []; let gen = 0; let cats = []; let cat = '';
   async function loadCats() { cats = (await read((s) => s.from('categories').select('id,name,active').order('name')).catch(() => ({ data: [] }))).data || []; }
   await loadCats();
   el.innerHTML = `<div class="stack"><div class="row"><input id="q" type="search" class="grow" placeholder="Buscar producto o código" aria-label="Buscar">
     <button class="btn primary" id="new">${icon('plus')} Nuevo</button></div>
+    <div class="chips wrap" id="cc" role="group" aria-label="Filtrar por categoría"></div>
     <button class="btn sm block" id="cats">Administrar categorías</button>
     <div id="l" class="list"></div><button class="btn block hidden" id="more">Ver más</button></div>`;
   const list = $('#l', el); const more = $('#more', el);
   attachScanner($('#q', el));
+  // Categorías para tocar y filtrar: «Todos» (principal), cada categoría y «Sin categoría»
+  function renderChips() {
+    if (cat && cat !== '__none' && !cats.some((c) => c.id === cat)) cat = '';
+    const chip = (k, label, cls = '') => `<button type="button" class="chip ${cls} ${k === cat ? 'on' : ''}" data-c="${esc(k)}" aria-pressed="${k === cat}">${label}</button>`;
+    $('#cc', el).innerHTML = chip('', 'Todos') + cats.map((c) => chip(c.id, esc(c.name) + (c.active ? '' : ' (inactiva)'), c.active ? '' : 'muted')).join('') + (cats.length ? chip('__none', 'Sin categoría') : '');
+  }
+  renderChips();
+  $('#cc', el).addEventListener('click', (e) => { const b = e.target.closest('[data-c]'); if (!b) return; cat = b.dataset.c; renderChips(); load(true); });
   async function load(reset) {
     const my = ++gen; if (reset) { page = 0; rows = []; list.innerHTML = spinner(); }
     try {
       const { data } = await read((s) => {
         let b = s.from('products').select('id,code,name,description,price,photo_url,active,category_id,inventory(physical_stock,reserved_stock,available_stock),product_costs(cost_price)').order('name').range(page * PAGE, page * PAGE + PAGE - 1);
+        if (cat === '__none') b = b.is('category_id', null); else if (cat) b = b.eq('category_id', cat);
         const t = cleanSearch(q); if (t) b = b.or(`name.ilike.%${t}%,code.ilike.%${t}%`); return b;
       });
       if (my !== gen) return;
@@ -38,12 +48,12 @@ export async function productsView(el) {
         <div class="thumb" style="display:grid;place-items:center;overflow:hidden">${img(p.photo_url, p.name) || icon('image')}</div>
         <div class="grow"><div class="pname">${esc(p.name)}</div><div class="muted small ellipsis">${esc(p.code)} · Venta ${money(p.price)} · Costo ${money(costOf(p))}</div>
         <div class="small">Disponible: <b>${one(p.inventory)?.available_stock ?? 0}</b>${Number(p.price) > 0 ? ` · Margen <b style="color:${marginOf(p) >= 0 ? 'var(--ok)' : 'var(--bad)'}">${marginOf(p).toFixed(0)}%</b>` : ''}</div></div>
-        ${p.active ? '' : '<span class="status s-idle">Inactivo</span>'}</div>`).join('') : emptyBox('No hay productos. Cree el primero con "Nuevo".');
+        ${p.active ? '' : '<span class="status s-idle">Inactivo</span>'}</div>`).join('') : emptyBox(q || cat ? 'No hay productos con ese filtro.' : 'No hay productos. Cree el primero con "Nuevo".');
     } catch (e) { if (my === gen) { list.innerHTML = errorBox(friendly(e)); $('[data-retry]', list)?.addEventListener('click', () => load(true)); } }
   }
   $('#q', el).addEventListener('input', debounce((e) => { q = e.target.value; load(true); }, 400));
-  $('#new', el).addEventListener('click', async () => { if (await productForm(null, cats)) load(true); });
-  $('#cats', el).addEventListener('click', async () => { await categoriesForm(cats); await loadCats(); });
+  $('#new', el).addEventListener('click', async () => { if (await productForm(null, cats)) { await loadCats(); renderChips(); load(true); } });
+  $('#cats', el).addEventListener('click', async () => { await categoriesForm(cats); await loadCats(); renderChips(); load(true); });
   list.addEventListener('click', async (e) => { const c = e.target.closest('[data-id]'); if (c && await productForm(rows.find((r) => r.id === c.dataset.id), cats)) load(true); });
   more.addEventListener('click', () => { page += 1; load(false); });
   await load(true);

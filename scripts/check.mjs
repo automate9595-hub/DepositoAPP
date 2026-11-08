@@ -99,6 +99,9 @@ if (!/\.env\b/.test(rd('.gitignore'))) fail('.gitignore debe excluir .env');
   if (!rd('src/index.html').includes('__CSP__')) fail('src/index.html: falta el marcador __CSP__ de la política de seguridad');
 }
 
+// 5d. Cada pantalla recibe un contenedor NUEVO (si se reutiliza, los escuchadores de clic se acumulan: «+» suma de a 3, saltos a Clientes…)
+if (!/cloneNode\(false\)/.test(rd('src/js/main.js'))) fail('src/js/main.js: route() debe crear un contenedor nuevo para cada pantalla (cloneNode(false))');
+
 // 5c. El verificador de huella del servidor (verify.js y el index.ts de un solo archivo) debe ser idéntico al de la app
 {
   const cut = (t) => t.slice(t.indexOf('// ---------- Utilidades puras'), t.indexOf('// ---------- Registro local')).replace(/^\/\/ -+ Utilidades puras.*\n/, '').trim();

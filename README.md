@@ -208,3 +208,8 @@ Desde **Administración › Respaldos › Importar** se puede volver a cargar el
   * Qué cuenta como ingreso: cobros registrados al entregar un pedido (incluye cliente público) y pagos a cuenta corriente. Los pagos hechos al entregar no se cuentan dos veces.
   * Los días se calculan con la hora de Argentina.
 * **Preventista**: «Proveedor» pasó a llamarse «Preventista» en toda la pantalla; el alta de usuario pide «Nombre del preventista», y el aviso a Central dice «el preventista X hizo el pedido».
+
+## Novedades v19
+
+* **Corrección importante:** cada pantalla se dibuja ahora en un contenedor nuevo. Antes los clics se acumulaban al ir cambiando de sección, y eso causaba que el «+» del preventista sumara de a 3, que se saltara a Clientes al tocar un producto, y que la pestaña de Preparación diera error. `check.mjs` vigila que no vuelva a pasar.
+* **Categorías para tocar** en Productos (administración) y en el catálogo del preventista: «Todos» y cada categoría (en Productos, también «Sin categoría»), siempre visibles debajo del buscador.

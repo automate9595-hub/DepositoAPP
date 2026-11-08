@@ -143,7 +143,9 @@ async function route() {
   const titleEl = $('#title'); titleEl.textContent = def.label;
   titleEl.classList.remove('swap'); void titleEl.offsetWidth; titleEl.classList.add('swap');
   renderNav();
-  const v = $('#view');
+  // Contenedor NUEVO en cada pantalla: las pantallas agregan escuchadores de clic al contenedor y, si se reutilizara,
+  // se acumularían (un «+» sumaba de a 3, tocar cualquier cosa abría Clientes…).
+  let v = $('#view'); { const fresh = v.cloneNode(false); v.replaceWith(fresh); v = fresh; }
   v.classList.remove('view-in');
   v.innerHTML = spinner();
   const ctx = {

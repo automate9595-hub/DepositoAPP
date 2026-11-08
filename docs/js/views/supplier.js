@@ -15,7 +15,7 @@ export async function catalogView(el) {
   const cats = (await read((s) => s.from('categories').select('id,name').eq('active', true).order('name')).catch(() => ({ data: [] }))).data || [];
   el.innerHTML = `<div class="search stack">
       <input id="q" type="search" placeholder="Buscar por nombre o código" autocomplete="off" aria-label="Buscar">
-      ${cats.length ? `<div class="chips"><button class="chip on" data-c="">Todas</button>${cats.map((c) => `<button class="chip" data-c="${c.id}">${esc(c.name)}</button>`).join('')}</div>` : ''}
+      ${cats.length ? `<div class="chips wrap" role="group" aria-label="Categorías"><button class="chip on" data-c="">Todos</button>${cats.map((c) => `<button class="chip" data-c="${c.id}">${esc(c.name)}</button>`).join('')}</div>` : ''}
     </div><div id="g" class="grid"></div><div id="s" class="empty hidden"></div>
     <button class="btn block hidden" id="more" style="margin-top:12px">Ver más productos</button>`;
   const grid = $('#g', el); const status = $('#s', el); const more = $('#more', el);

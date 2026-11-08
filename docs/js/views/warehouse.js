@@ -10,11 +10,12 @@ const TABS = [['todo', 'Por preparar', ['APROBADO']], ['curso', 'En preparación
 export async function warehouseOrdersView(el, ctx) {
   if (ctx.args[0]) return detail(el, ctx, ctx.args[0]);
   const base = '#/' + (ctx.path || 'pedidos');
-  let tab = sessionStorage.getItem('wh-tab') || 'todo'; let gen = 0;
+  const validTab = (k) => (TABS.some((t) => t[0] === k) ? k : 'todo');
+  let tab = validTab(sessionStorage.getItem('wh-tab')); let gen = 0;
   el.innerHTML = `<div class="stack"><div class="chips">${TABS.map(([k, l]) => `<button class="chip ${k === tab ? 'on' : ''}" data-t="${k}">${l}</button>`).join('')}</div><div id="l" class="list"></div></div>`;
   const list = $('#l', el);
   async function load() {
-    const my = ++gen; const sts = TABS.find((t) => t[0] === tab)[2];
+    const my = ++gen; const sts = (TABS.find((t) => t[0] === tab) || TABS[0])[2];
     try {
       const { data } = await read((s) => s.from('orders').select('id,order_number,status,total_approved,total_requested,customer_name,created_at,assigned_to,suppliers(company_name)').in('status', sts).order('created_at', { ascending: true }).limit(100));
       if (my !== gen) return;
@@ -22,7 +23,7 @@ export async function warehouseOrdersView(el, ctx) {
     } catch (e) { if (my === gen) { list.innerHTML = errorBox(friendly(e)); $('[data-retry]', list)?.addEventListener('click', load); } }
   }
   el.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-t]'); if (t) { tab = t.dataset.t; sessionStorage.setItem('wh-tab', tab); $$('.chip', el).forEach((c) => c.classList.toggle('on', c === t)); list.innerHTML = spinner(); load(); return; }
+    const t = e.target.closest('.chips [data-t]'); if (t && TABS.some((x) => x[0] === t.dataset.t)) { tab = t.dataset.t; sessionStorage.setItem('wh-tab', tab); $$('.chip', el).forEach((c) => c.classList.toggle('on', c === t)); list.innerHTML = spinner(); load(); return; }
     const c = e.target.closest('[data-order]'); if (c) ctx.navigate(base + '/' + c.dataset.order);
   });
   list.innerHTML = spinner(); await load();

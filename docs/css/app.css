@@ -592,3 +592,8 @@ input:focus, select:focus, textarea:focus { background: var(--card); }
 .cj-pi { width: 40px; height: 40px; flex: none; border-radius: 12px; display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
 @media (max-width: 380px) { .cj-step { flex-wrap: wrap; } .cj-step input { width: 100%; } }
 @media (min-width: 900px) { .cj { max-width: 760px; margin: 0 auto; width: 100%; } }
+
+/* Categorías: todas visibles, para tocar y filtrar */
+.chips.wrap { flex-wrap: wrap; overflow: visible; row-gap: 8px; }
+.chips.wrap .chip.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; box-shadow: 0 6px 14px -8px var(--accent); }
+.chips.wrap .chip.muted:not(.on) { opacity: .6; }

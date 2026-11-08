@@ -7,7 +7,7 @@ import { orderCard } from './order-common.js';
 const isAdm = () => can('customers');
 const num = (v) => Number(String(v ?? '').trim().replace(/\s/g, '').replace(',', '.'));
 const FILTERS = [['', 'Todos'], ['CON_SALDO', 'Con saldo'], ['VENCIDO', 'Vencidos'], ['AL_DIA', 'Al día']];
-const METHODS = ['Efectivo', 'Transferencia', 'Cheque', 'Tarjeta', 'Otro'];
+const METHODS = ['Efectivo', 'Mercado Pago', 'Transferencia', 'Cheque', 'Tarjeta', 'Otro'];
 
 const badge = (c) => (c.is_public ? accountBadge(null) : c.account_status ? accountBadge(c.account_status) : '');
 export const balanceHtml = (c) => {

@@ -3,7 +3,7 @@ import { state, bus } from '../state.js';
 import { read, rpc, friendly } from '../api.js';
 import { esc, dateTime, roleLabel } from '../format.js';
 import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal } from '../ui.js';
-import { themePref, setTheme } from '../theme.js';
+import { themePref, setTheme, paletteId, setPalette, PALETTES, AUTO_LIGHT_FROM, AUTO_LIGHT_TO } from '../theme.js';
 import { soundEnabled, setSound, previewSound } from '../sound.js';
 import { bioSupported, bioEnabled, bioEnable, bioDisable, bioVerify, bioLockMinutes, setBioLockMinutes, bioServerRegistered, bioCredId, passkeyLogin, errDetail, explainError, LOCK_CHOICES } from '../bio.js';
 import { config } from '../supa.js';
@@ -32,7 +32,9 @@ export async function accountView(el) {
       </form>
     </div>
     <div class="card stack"><h3>Apariencia y sonido</h3>
-      <div class="seg" id="theme" role="group" aria-label="Tema">${[['auto', 'Automático', 'refresh'], ['light', 'Claro', 'sun'], ['dark', 'Oscuro', 'moon']].map(([k, l, i]) => `<button type="button" data-th="${k}" class="${themePref() === k ? 'on' : ''}">${icon(i)}${l}</button>`).join('')}</div>
+      <div class="field"><span>Modo</span><div class="seg" id="theme" role="group" aria-label="Modo claro, oscuro o automático">${[['light', 'Claro', 'sun'], ['dark', 'Oscuro', 'moon'], ['auto', 'Automático', 'auto']].map(([k, l, i]) => `<button type="button" data-th="${k}" class="${themePref() === k ? 'on' : ''}">${icon(i)}${l}</button>`).join('')}</div>
+        <p class="auto-note">${icon('clock')}<span>Automático: modo claro de ${AUTO_LIGHT_FROM}:00 a ${AUTO_LIGHT_TO}:00 y modo oscuro de noche. También podés cambiar el modo con el botón de arriba (sol, luna, automático).</span></p></div>
+      <div class="field"><span>Tema de colores</span><div class="pal-grid" id="pal" role="group" aria-label="Tema de colores">${PALETTES.map((p) => `<button type="button" class="pal ${paletteId() === p.id ? 'on' : ''}" data-pal="${p.id}" aria-pressed="${paletteId() === p.id}"><span class="pal-sw" style="background:linear-gradient(135deg, ${p.sw[0]} 55%, ${p.sw[1]} 55%)"></span><b>${p.name}</b><small>${p.note}</small><span class="tick">${icon('check')}</span></button>`).join('')}</div></div>
       <div class="row between"><div class="grow"><b>Sonido de avisos</b><div class="muted small">Suena cuando llega un pedido o cambia su estado.</div></div>
         <button type="button" class="switch" id="sw" role="switch" aria-label="Sonido de avisos" aria-checked="${soundEnabled()}"></button></div>
       <button type="button" class="btn sm" id="tst">${icon('volume')} Probar sonido</button>
@@ -48,6 +50,7 @@ export async function accountView(el) {
     <button class="btn danger block" id="out">${icon('logout')} Cerrar sesión</button></div>`;
 
   $$('[data-th]', el).forEach((b) => b.addEventListener('click', () => { setTheme(b.dataset.th); $$('[data-th]', el).forEach((x) => x.classList.toggle('on', x === b)); }));
+  $$('[data-pal]', el).forEach((b) => b.addEventListener('click', () => { setPalette(b.dataset.pal); $$('[data-pal]', el).forEach((x) => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); }); }));
   $('#sw', el).addEventListener('click', (e) => { const on = e.currentTarget.getAttribute('aria-checked') !== 'true'; setSound(on); e.currentTarget.setAttribute('aria-checked', String(on)); });
   const syncSw = () => $('#sw', el)?.setAttribute('aria-checked', String(soundEnabled()));
   document.addEventListener('soundchange', syncSw);

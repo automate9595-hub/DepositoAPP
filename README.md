@@ -213,3 +213,11 @@ Desde **Administración › Respaldos › Importar** se puede volver a cargar el
 
 * **Corrección importante:** cada pantalla se dibuja ahora en un contenedor nuevo. Antes los clics se acumulaban al ir cambiando de sección, y eso causaba que el «+» del preventista sumara de a 3, que se saltara a Clientes al tocar un producto, y que la pestaña de Preparación diera error. `check.mjs` vigila que no vuelva a pasar.
 * **Categorías para tocar** en Productos (administración) y en el catálogo del preventista: «Todos» y cada categoría (en Productos, también «Sin categoría»), siempre visibles debajo del buscador.
+
+## Novedades v20
+
+**Instalación:** Supabase › SQL Editor: ejecutar `15_inicio_de_caja_y_mercado_pago.sql` (o `EJECUTAR_EN_SUPABASE.sql` completo). Luego publicar la app.
+
+* **Categorías**: una sola fila que se desliza hacia los costados + botón de menú (arriba a la izquierda) que abre la lista completa con buscador y la categoría actual marcada. En Productos y en el catálogo del preventista.
+* **Temas**: Configuración (Cuenta) › Apariencia: modo **Claro / Oscuro / Automático** (claro de 6:00 a 18:00, oscuro de noche) y 3 temas de color: **Océano**, **Esmeralda** y **Rubí**. El botón de arriba rota sol → luna → automático.
+* **Caja**: la primera vez del día pregunta «¿Iniciar la caja de hoy?»; pide efectivo, saldo de Mercado Pago y % de retención de Mercado Pago. «Mercado Pago» es ahora un medio de pago (al entregar un pedido y en pagos de cuenta corriente). El arqueo calcula el efectivo esperado y el saldo esperado en Mercado Pago (inicial + cobrado − retención); el comprobante incluye ambos.

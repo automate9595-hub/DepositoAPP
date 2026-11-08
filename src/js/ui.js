@@ -33,6 +33,7 @@ const P = {
   database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>',
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  auto: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>',
   trash: '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/>',
   lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   fingerprint: '<path d="M2 12a10 10 0 0 1 18-6M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4M14 13.12c0 2.38 0 6.38-1 8.88M17.29 21.02c.12-.6.43-2.3.5-3.02M8.65 22c.21-.66.45-1.32.57-2M22 12.4a10 10 0 0 1-.5 5M18 12a6 6 0 0 0-9.6-4.8"/>',
@@ -49,7 +50,7 @@ const P = {
 export const icon = (n, extra = '') => `<svg class="i${extra ? ' ' + extra : ''}" viewBox="0 0 24 24" aria-hidden="true">${P[n] ?? ''}</svg>`;
 export const logoSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + P.box + '</svg>';
 
-export const themeButton = (cls = 'iconbtn') => `<button type="button" class="${cls}" data-theme-toggle aria-label="Cambiar entre tema claro y oscuro" title="Tema claro / oscuro">${icon('sun', 'ico-sun')}${icon('moon', 'ico-moon')}</button>`;
+export const themeButton = (cls = 'iconbtn') => `<button type="button" class="${cls}" data-theme-toggle aria-label="Cambiar el tema: claro, oscuro o automático" title="Tema: claro / oscuro / automático">${icon('sun', 'ico-sun')}${icon('moon', 'ico-moon')}${icon('auto', 'ico-auto')}</button>`;
 export const soundButton = (id = 'snd') => `<button type="button" class="iconbtn" id="${id}" data-sound-toggle aria-label="Activar o silenciar sonidos de aviso" title="Sonido de avisos">${icon('volume', 'on')}${icon('mute', 'off')}</button>`;
 
 export const $ = (sel, root = document) => root.querySelector(sel);

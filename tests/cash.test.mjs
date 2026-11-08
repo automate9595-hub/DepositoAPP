@@ -47,3 +47,19 @@ test('receiptHtml escapa el texto de los clientes', () => {
   assert.ok(!html.includes('<b>>')); assert.ok(html.includes('Juan &lt;b&gt;')); assert.match(html, /La caja cuadra/);
 });
 test('fmtDayShort devuelve un texto corto', () => { assert.ok(fmtDayShort('2026-11-07').length > 3); });
+
+import { calcMp, METHODS } from '../src/js/cash-utils.js';
+test('Mercado Pago es un medio de pago', () => { assert.ok(METHODS.some((m) => m.key === 'Mercado Pago')); });
+test('calcMp: saldo esperado = inicial + cobrado − retención', () => {
+  assert.deepEqual(calcMp({ opening: 1000, gross: 10000, pct: 5, counted: 10450 }), { retention: 500, net: 9500, expected: 10500, difference: -50, state: 'short' });
+  assert.equal(calcMp({ opening: 0, gross: 1000, pct: 0, counted: 1000 }).state, 'ok');
+  assert.equal(calcMp({ opening: 0, gross: 1000, pct: 4.5 }).state, 'pending');
+  assert.equal(calcMp({ opening: 0, gross: 1000, pct: 4.5 }).retention, 45);
+  assert.equal(calcMp({ opening: 0, gross: 333.33, pct: 3.4 }).retention, 11.33);
+});
+test('el comprobante incluye Mercado Pago con su retención', () => {
+  const rep2 = { ...rep, mp: { gross: 5000, pct: 4.5, retention: 225, net: 4775, opening: 100, expected: 4875 } };
+  const t = receiptText(rep2, calcArqueo({ cashIncome: 1 }), { countedMp: 4875 });
+  assert.match(t, /Mercado Pago/); assert.match(t, /Retención \(4.5%\)/); assert.match(t, /La caja cuadra/);
+  assert.match(receiptHtml(rep2, calcArqueo({ cashIncome: 1 }), { countedMp: 4800 }), /Falta dinero/);
+});

@@ -17,7 +17,7 @@ export async function deliverOrder(order) {
     ${hasAccount ? `<label class="field"><span>¿Cómo se cobra?</span><select id="delivery-kind"><option value="paid">Cobrar ahora</option><option value="credit">Dejar a cuenta corriente</option></select></label>` : `<p class="notice">Este cliente no tiene cuenta corriente. Registrá el cobro para confirmar la entrega.</p>`}
     <div id="delivery-payment" class="stack">
       <label class="field"><span>Monto recibido</span><input id="delivery-amount" inputmode="decimal" value="${total.toFixed(2)}"></label>
-      <label class="field"><span>¿Cómo pagó?</span><select id="delivery-method"><option>Efectivo</option><option>Transferencia</option><option>Cheque</option><option>Tarjeta</option><option>Otro</option></select></label>
+      <label class="field"><span>¿Cómo pagó?</span><select id="delivery-method"><option>Efectivo</option><option>Mercado Pago</option><option>Transferencia</option><option>Cheque</option><option>Tarjeta</option><option>Otro</option></select></label>
       ${hasAccount ? '<p class="muted small">Si recibe un pago parcial, la diferencia quedará pendiente en la cuenta corriente.</p>' : ''}
     </div>
     <p id="delivery-error" class="notice bad hidden" role="alert"></p>

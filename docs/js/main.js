@@ -20,7 +20,7 @@ import { warehouseOrdersView } from './views/warehouse.js';
 import { cartLines } from './cart.js';
 
 const app = document.getElementById('app');
-initTheme(); initEffects();
+initTheme((m) => toast(m)); initEffects();
 let current = null; let navSeq = 0; let channel = null; let wasDown = false; let started = null; let hiddenAt = 0; let unlockedUid = null; let softLocked = softLockGet();
 const pendingKinds = new Set();
 

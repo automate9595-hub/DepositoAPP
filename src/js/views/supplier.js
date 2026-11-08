@@ -1,3 +1,4 @@
+import { categoryBar } from '../category-bar.js';
 import { state, bus, persistCart, replaceCart } from '../state.js';
 import { read, rpc, friendly } from '../api.js';
 import { esc, money, cleanSearch, debounce, one, toInt } from '../format.js';
@@ -15,10 +16,11 @@ export async function catalogView(el) {
   const cats = (await read((s) => s.from('categories').select('id,name').eq('active', true).order('name')).catch(() => ({ data: [] }))).data || [];
   el.innerHTML = `<div class="search stack">
       <input id="q" type="search" placeholder="Buscar por nombre o código" autocomplete="off" aria-label="Buscar">
-      ${cats.length ? `<div class="chips wrap" role="group" aria-label="Categorías"><button class="chip on" data-c="">Todos</button>${cats.map((c) => `<button class="chip" data-c="${c.id}">${esc(c.name)}</button>`).join('')}</div>` : ''}
+      <div id="cb"></div>
     </div><div id="g" class="grid"></div><div id="s" class="empty hidden"></div>
     <button class="btn block hidden" id="more" style="margin-top:12px">Ver más productos</button>`;
   const grid = $('#g', el); const status = $('#s', el); const more = $('#more', el);
+  if (cats.length) categoryBar($('#cb', el), { cats: () => cats, value: () => cat, onChange: (k) => { cat = k; load(true); } }); else $('#cb', el).remove();
   attachScanner($('#q', el)); // botón de cámara para buscar por código de barras (si el dispositivo lo permite)
 
   const card = (p) => {
@@ -57,7 +59,6 @@ export async function catalogView(el) {
   const search = debounce(() => { q = $('#q', el).value; load(true); }, 400);
   $('#q', el).addEventListener('input', search);
   el.addEventListener('click', (e) => {
-    const chip = e.target.closest('.chip'); if (chip) { $$('.chip', el).forEach((c) => c.classList.toggle('on', c === chip)); cat = chip.dataset.c; load(true); return; }
     if (e.target === more) { page += 1; load(false); return; }
     const b = e.target.closest('[data-d]'); if (!b) return;
     const c = b.closest('.pcard'); const inp = $('[data-q]', c); setFrom(c, toInt(inp.value) + toInt(b.dataset.d));

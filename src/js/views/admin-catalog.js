@@ -3,6 +3,7 @@ import { read, rpc, write, friendly } from '../api.js';
 import { esc, money, cleanSearch, debounce, one, toInt, dateTime } from '../format.js';
 import { $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal, img, icon, compressImage, confirmBox, toast } from '../ui.js';
 import { can } from '../state.js';
+import { categoryBar } from '../category-bar.js';
 import { attachScanner, scanBarcode, scannerSupported, downloadCsv, fetchAll, stamp } from '../tools.js';
 import { parseLow } from '../export-utils.js';
 
@@ -21,19 +22,15 @@ export async function productsView(el) {
   await loadCats();
   el.innerHTML = `<div class="stack"><div class="row"><input id="q" type="search" class="grow" placeholder="Buscar producto o código" aria-label="Buscar">
     <button class="btn primary" id="new">${icon('plus')} Nuevo</button></div>
-    <div class="chips wrap" id="cc" role="group" aria-label="Filtrar por categoría"></div>
+    <div id="cc"></div>
     <button class="btn sm block" id="cats">Administrar categorías</button>
     <div id="l" class="list"></div><button class="btn block hidden" id="more">Ver más</button></div>`;
   const list = $('#l', el); const more = $('#more', el);
   attachScanner($('#q', el));
-  // Categorías para tocar y filtrar: «Todos» (principal), cada categoría y «Sin categoría»
-  function renderChips() {
-    if (cat && cat !== '__none' && !cats.some((c) => c.id === cat)) cat = '';
-    const chip = (k, label, cls = '') => `<button type="button" class="chip ${cls} ${k === cat ? 'on' : ''}" data-c="${esc(k)}" aria-pressed="${k === cat}">${label}</button>`;
-    $('#cc', el).innerHTML = chip('', 'Todos') + cats.map((c) => chip(c.id, esc(c.name) + (c.active ? '' : ' (inactiva)'), c.active ? '' : 'muted')).join('') + (cats.length ? chip('__none', 'Sin categoría') : '');
-  }
-  renderChips();
-  $('#cc', el).addEventListener('click', (e) => { const b = e.target.closest('[data-c]'); if (!b) return; cat = b.dataset.c; renderChips(); load(true); });
+  // Categorías: fila deslizable + menú desplegable (Todos, cada categoría y «Sin categoría»)
+  if (cat && cat !== '__none' && !cats.some((c) => c.id === cat)) cat = '';
+  const catBar = categoryBar($('#cc', el), { cats: () => cats, value: () => cat, none: true, onChange: (k) => { cat = k; load(true); } });
+  const renderChips = () => { if (cat && cat !== '__none' && !cats.some((c) => c.id === cat)) cat = ''; catBar.render(); };
   async function load(reset) {
     const my = ++gen; if (reset) { page = 0; rows = []; list.innerHTML = spinner(); }
     try {

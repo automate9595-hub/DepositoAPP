@@ -221,3 +221,22 @@ Desde **Administración › Respaldos › Importar** se puede volver a cargar el
 * **Categorías**: una sola fila que se desliza hacia los costados + botón de menú (arriba a la izquierda) que abre la lista completa con buscador y la categoría actual marcada. En Productos y en el catálogo del preventista.
 * **Temas**: Configuración (Cuenta) › Apariencia: modo **Claro / Oscuro / Automático** (claro de 6:00 a 18:00, oscuro de noche) y 3 temas de color: **Océano**, **Esmeralda** y **Rubí**. El botón de arriba rota sol → luna → automático.
 * **Caja**: la primera vez del día pregunta «¿Iniciar la caja de hoy?»; pide efectivo, saldo de Mercado Pago y % de retención de Mercado Pago. «Mercado Pago» es ahora un medio de pago (al entregar un pedido y en pagos de cuenta corriente). El arqueo calcula el efectivo esperado y el saldo esperado en Mercado Pago (inicial + cobrado − retención); el comprobante incluye ambos.
+
+## Novedades v21
+
+**Instalación (en este orden):**
+1. Supabase › SQL Editor: ejecutar `16_comisiones_y_respaldo_en_cierre.sql` (se puede repetir sin riesgo).
+2. Volver a desplegar la función de respaldos: `supabase functions deploy deposito-backup` (ahora comprime y entiende el cierre de caja).
+3. Para que el cierre de caja pida el respaldo solo: haber ejecutado `07_respaldos.sql` y `08_programar_respaldos.sql` (usan `pg_net` y Vault). Si no está configurado, el cierre se guarda igual y Caja avisa que el respaldo no se pudo pedir.
+4. Publicar la app.
+
+* **Comisión por preventista** (Usuarios › tocar un preventista › «Comisión y pagos»): el administrador principal define el porcentaje y si se calcula **sobre lo vendido** o **sobre la ganancia** (venta − costo). Es opcional: 0 % = sin comisión. Rige para los pedidos que se entreguen desde ese momento; los ya entregados conservan lo que les correspondía. Quien tenga el permiso de Caja puede **registrar pagos** (Efectivo, Mercado Pago, Transferencia, Otro); no se puede pagar más de lo adeudado.
+* **El preventista ve su comisión** arriba de «Mis pedidos»: ganado este mes, ya cobrado, lo que le falta cobrar, pagos recibidos y detalle por pedido. Solo ve la suya.
+* **Respaldo al cerrar la caja:** «Cerrar caja» pide un respaldo completo (incluye caja y comisiones) y Caja muestra si se guardó. Queda en Respaldos como «Cierre de caja AAAA-MM-DD». Los archivos son `.json.gz` (≈6 veces más chicos); «Restaurar» los acepta igual que los `.json`.
+* **Seguridad y velocidad:** se quitaron permisos de más a nivel tabla, y las políticas de seguridad (RLS) ahora evalúan una sola vez por consulta en vez de por fila (de 76 a 1.328 transacciones/s en la prueba con 47.000 pedidos).
+
+### Pruebas
+* `node scripts/test.mjs` y `node scripts/check.mjs`: pruebas de la aplicación. `node --experimental-strip-types --test tests/edge-backup.test.mjs`: función de respaldos.
+* `supabase/tests/escenarios.sql`, `comisiones_y_cierre.sql` y `seguridad.sql` (267 comprobaciones): se ejecutan con `psql` sobre una base de **prueba** (terminan con rollback). `supabase/tests/local/install_local.sh` arma esa base en un PostgreSQL local.
+* `supabase/tests/carga/`: simulación masiva (60 preventistas, 600 clientes, picos de 24 clientes simultáneos, stock en disputa, carreras de doble entrega/pago y 16 invariantes). `preparar_todo.sh` y `03_flujo_masivo.sh`. El **catálogo de 1.200 productos de prueba** (`catalogo_pruebas.sql`, prefijo `TST-`, categorías «[TEST] …») se puede cargar en un proyecto de pruebas; `limpiar_pruebas.sql` lo quita. **No cargarlo en la base real.**
+* Límite conocido: la función de respaldo maneja hasta ~150 MB de datos (≈35.000 pedidos sin fotos) y 50 MB comprimidos por archivo; más allá, usar los respaldos diarios de Supabase o `pg_dump`.

@@ -75,7 +75,7 @@ begin
 
   -- 10. Pedido con stock insuficiente (proveedor 2)
   perform set_config('request.jwt.claims', json_build_object('sub', us2, 'role', 'authenticated')::text, true);
-  if not _t.fails(format($q$select public.submit_order(gen_random_uuid(), '[{"product_id":"%s","qty":5}]'::jsonb)$q$, p1), 'STOCK_INSUFICIENTE') then
+  if not _t.fails(format($q$select public.submit_order(gen_random_uuid(), '[{"product_id":"%s","qty":5}]'::jsonb, null, %L)$q$, p1, (select id from public.customers where is_public)), 'STOCK_INSUFICIENTE') then
     raise exception 'FALLO 10: se aceptó un pedido sin stock suficiente';
   end if;
 

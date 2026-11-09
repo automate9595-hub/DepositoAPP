@@ -3,7 +3,7 @@ import { role } from '../state.js';
 import { friendly } from '../api.js';
 import { $, $$, busy, ok, fail, icon, modal, confirmBox } from '../ui.js';
 import { esc, dateTime } from '../format.js';
-import { GROUPS, parseBackup, summarize, fmtBytes, base64ToBytes, TABLE_LABELS } from '../backup-utils.js';
+import { GROUPS, readBackupText, parseBackup, summarize, fmtBytes, base64ToBytes, TABLE_LABELS } from '../backup-utils.js';
 
 const PAGE = 1000;
 const INTERVALS = [[60,'Cada 1 hora'],[180,'Cada 3 horas'],[360,'Cada 6 horas'],[720,'Cada 12 horas'],[1440,'Cada 24 horas'],[2880,'Cada 2 días'],[4320,'Cada 3 días'],[10080,'Cada 7 días']];
@@ -224,7 +224,7 @@ export async function backupsView(el) {
     pane.innerHTML = `<section class="bk-card">
       <div class="bk-card-h"><span class="bk-step">1</span><div><h3>Elegí el archivo de respaldo</h3><p class="muted small">Sirve tanto el respaldo que descargás desde «Exportar» como los automáticos.</p></div></div>
       <label class="bk-drop" id="bk-drop" for="bk-file">${icon('upload')}<b>Tocá para elegir el archivo</b><small>Archivo .json de DepositoAPP · o arrastralo hasta acá</small></label>
-      <input id="bk-file" class="sr" type="file" accept=".json,application/json">
+      <input id="bk-file" class="sr" type="file" accept=".json,.gz,application/json,application/gzip">
       <div id="bk-loaded"></div>
     </section>
     <section class="bk-card hidden" id="bk-opts">
@@ -253,7 +253,7 @@ export async function backupsView(el) {
     const box = $('#bk-loaded', pane);
     box.innerHTML = '<p class="muted small">Leyendo el archivo…</p>';
     let text;
-    try { text = await file.text(); } catch { box.innerHTML = ''; fail('No se pudo leer el archivo seleccionado.'); return; }
+    try { text = await readBackupText(file); } catch { box.innerHTML = ''; fail('No se pudo leer el archivo seleccionado.'); return; }
     const parsed = parseBackup(text);
     if (!parsed.ok) { loaded = null; $('#bk-opts', pane).classList.add('hidden'); box.innerHTML = `<div class="notice bad">${esc(parsed.error)}</div>`; return; }
     loaded = { parsed, name: file.name, size: file.size };
@@ -364,7 +364,7 @@ export async function backupsView(el) {
       <div class="bk-card-h"><span class="bk-step">${icon('database')}</span><div><h3>Respaldos guardados en el servidor</h3><p class="muted small">Podés descargarlos o restaurar cualquiera de ellos.</p></div></div>
       ${(runs || []).length ? (runs || []).map((r, i) => `<div class="bk-run">
         <span class="status ${r.status === 'ok' ? 's-ok' : 's-bad'}">${r.status === 'ok' ? 'Correcto' : 'Fallido'}</span>
-        <div class="grow"><b class="small">${esc(dateTime(r.created_at))}</b>
+        <div class="grow"><b class="small">${esc(dateTime(r.created_at))}${r.triggered_by === 'cierre_caja' ? ` · Cierre de caja${r.closing_day ? ' ' + esc(r.closing_day) : ''}` : ''}</b>
           <div class="muted small">${r.size_bytes ? esc(fmtBytes(r.size_bytes)) : ''}${r.error_message ? esc(r.error_message) : ''}</div></div>
         ${r.status === 'ok' && r.storage_path ? `<button class="btn sm" data-dl="${i}" title="Descargar">${icon('download')}</button><button class="btn sm primary" data-rs="${i}" title="Restaurar este respaldo">${icon('refresh')}</button>` : ''}
       </div>`).join('') : '<div class="empty">Todavía no hay ejecuciones registradas.</div>'}
@@ -392,7 +392,7 @@ export async function backupsView(el) {
     $$('[data-rs]', pane).forEach((b) => b.addEventListener('click', () => busy(b, async () => {
       try {
         const { run, blob } = await fetchRun(Number(b.dataset.rs));
-        const parsed = parseBackup(await blob.text());
+        const parsed = parseBackup(await readBackupText(blob));
         if (!parsed.ok) { fail(parsed.error); return; }
         loaded = { parsed, name: run.storage_path.split('/').pop() || 'respaldo.json', size: blob.size };
         show('import');

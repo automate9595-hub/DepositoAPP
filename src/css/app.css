@@ -666,3 +666,9 @@ input:focus, select:focus, textarea:focus { background: var(--card); }
 .cj-sub { margin: 8px 0 0; display: flex; align-items: center; gap: 8px; font-size: 1rem; } .cj-sub svg { width: 18px; height: 18px; color: #009ee3; }
 .cj-n.mp { width: 34px; height: 34px; background: #009ee3; color: #fff; font-size: .7rem; }
 #st { justify-self: start; margin-top: 8px; }
+
+/* Comisiones de preventistas */
+.cm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cm-grid > div { display: flex; flex-direction: column; gap: 2px; padding: 10px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); min-width: 0; }
+.cm-grid b { font-size: 1.05rem; overflow-wrap: anywhere; }
+@media (max-width: 380px) { .cm-grid { grid-template-columns: 1fr; } }

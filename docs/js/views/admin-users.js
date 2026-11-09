@@ -2,22 +2,26 @@ import { createIsolatedClient } from '../supa.js';
 import { state } from '../state.js';
 import { read, rpc, friendly, toAppError } from '../api.js';
 import { esc, money, roleLabel, PERMS, dateTime, statusLabel, one, debounce, cleanSearch } from '../format.js';
+import { commissionModal } from './commission.js';
 import { $, busy, ok, fail, emptyBox, errorBox, spinner, modal, icon } from '../ui.js';
 
 const PAGE = 30;
 
 // ---------------- Usuarios ----------------
 export async function usersView(el) {
-  let rows = []; let sup = {}; let q = '';
+  let rows = []; let sup = {}; let supId = {}; let comm = {}; let q = '';
   el.innerHTML = `<div class="stack"><div class="row"><input id="q" type="search" class="grow" placeholder="Buscar nombre o correo" aria-label="Buscar"><button class="btn primary" id="new">${icon('plus')} Nuevo</button></div><div id="l" class="list"></div></div>`;
   const list = $('#l', el);
   async function load() {
     list.innerHTML = spinner();
     try {
-      const [p, s] = await Promise.all([
+      const [p, s, cv] = await Promise.all([
         read((c) => c.from('profiles').select('id,email,role,full_name,phone,active,permissions,created_at').order('created_at', { ascending: false }).limit(500)),
-        read((c) => c.from('suppliers').select('profile_id,company_name')),
+        read((c) => c.from('suppliers').select('id,profile_id,company_name')),
+        rpc('commission_overview', {}).catch(() => []),
       ]);
+      comm = Object.fromEntries((cv || []).map((x) => [x.supplier_id, x]));
+      supId = Object.fromEntries((s.data || []).map((x) => [x.profile_id, x.id]));
       rows = p.data || []; sup = Object.fromEntries((s.data || []).map((x) => [x.profile_id, x.company_name])); draw();
     } catch (e) { list.innerHTML = errorBox(friendly(e)); $('[data-retry]', list)?.addEventListener('click', load); }
   }
@@ -26,11 +30,11 @@ export async function usersView(el) {
     const f = rows.filter((r) => !t || `${r.full_name} ${r.email}`.toLowerCase().includes(t));
     list.innerHTML = f.length ? f.map((r) => `<div class="card click" data-id="${r.id}"><div class="row between"><b class="ellipsis">${esc(r.full_name || r.email)}</b>
       ${!r.role ? '<span class="status s-warn">Sin rol</span>' : r.active ? '<span class="status s-ok">Activo</span>' : '<span class="status s-idle">Inactivo</span>'}</div>
-      <div class="muted small ellipsis">${esc(r.email)} · ${esc(roleLabel(r.role))}${sup[r.id] ? ' · ' + esc(sup[r.id]) : ''}</div></div>`).join('') : emptyBox('Sin usuarios.');
+      <div class="muted small ellipsis">${esc(r.email)} · ${esc(roleLabel(r.role))}${sup[r.id] ? ' · ' + esc(sup[r.id]) : ''}${comm[supId[r.id]] && Number(comm[supId[r.id]].pct) > 0 ? ` · Comisión ${esc(String(Number(comm[supId[r.id]].pct)).replace('.', ','))}%${Number(comm[supId[r.id]].balance) > 0 ? ' · se le debe ' + esc(money(comm[supId[r.id]].balance)) : ''}` : ''}</div></div>`).join('') : emptyBox('Sin usuarios.');
   }
   $('#q', el).addEventListener('input', debounce((e) => { q = e.target.value; draw(); }, 250));
   $('#new', el).addEventListener('click', async () => { if (await newUserForm()) load(); });
-  list.addEventListener('click', async (e) => { const c = e.target.closest('[data-id]'); if (!c) return; const r = rows.find((x) => x.id === c.dataset.id); if (r && await editUserForm(r, sup[r.id])) load(); });
+  list.addEventListener('click', async (e) => { const c = e.target.closest('[data-id]'); if (!c) return; const r = rows.find((x) => x.id === c.dataset.id); if (r && await editUserForm(r, sup[r.id], supId[r.id])) load(); });
   await load();
   return { refresh: () => load() };
 }
@@ -82,7 +86,7 @@ function newUserForm() {
   }).then((v) => v === true);
 }
 
-function editUserForm(r, company) {
+function editUserForm(r, company, supplierId) {
   const principal = r.role === 'admin_principal';
   return modal(`<h2>${esc(r.full_name || r.email)}</h2><p class="muted small">${esc(r.email)}</p>
     ${principal ? '<p class="notice">El administrador principal no se puede modificar desde la aplicación.</p><button class="btn block" data-close>Cerrar</button>' : `
@@ -92,6 +96,7 @@ function editUserForm(r, company) {
       <label class="field"><span>Rol</span><select name="role">${r.role ? '' : '<option value="">Elegir rol…</option>'}${roleOptions(r.role)}</select></label>
       <label class="field" id="co"><span>Nombre del preventista</span><input name="company" value="${esc(company || '')}" maxlength="120"></label>
       <div id="pm" class="hidden"><span class="muted small">Permisos del segundo administrador</span>${permBoxes(r.permissions)}</div>
+      ${supplierId ? '<button type="button" class="btn block" id="cm">Comisión y pagos</button>' : ''}
       <label class="check"><input type="checkbox" name="active" ${r.active ? 'checked' : ''}> Cuenta activa</label>
       <p class="muted small">Si olvidó la contraseña, el usuario puede cambiarla en Cuenta; para restablecerla use Supabase > Authentication > Users.</p>
       <p class="notice bad hidden" id="err" role="alert"></p>
@@ -100,6 +105,7 @@ function editUserForm(r, company) {
       const f = $('#f', ov); if (!f) return; const err = $('#err', ov);
       const sync = () => { $('#co', ov).classList.toggle('hidden', f.role.value !== 'proveedor'); $('#pm', ov).classList.toggle('hidden', f.role.value !== 'admin_secundario'); };
       f.role.addEventListener('change', sync); sync();
+      $('#cm', ov)?.addEventListener('click', () => commissionModal(supplierId, company));
       f.addEventListener('submit', async (e) => {
         e.preventDefault(); err.classList.add('hidden');
         if (!f.role.value) { err.textContent = 'Elija un rol.'; err.classList.remove('hidden'); return; }

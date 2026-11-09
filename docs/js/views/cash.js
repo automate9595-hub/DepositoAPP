@@ -83,6 +83,16 @@ export async function cashView(el) {
   const mpCalc = () => calcMp({ opening: rep.mp?.opening, gross: rep.mp?.gross, pct: rep.mp?.pct, counted: nums().countedMp });
   const receiptOpts = () => { const n = nums(); const c = rep.closing; return { opening: n.opening, withdrawals: n.withdrawals, counted: n.counted, countedMp: n.countedMp, notes: form.notes, who: c?.closed_by_name || state.profile?.full_name || '', closedAt: c?.closed_at || null }; };
 
+  const backupLine = (b) => {
+    if (!b || b.status === 'ninguno') return '';
+    const map = { ok: ['ok', `Respaldo del cierre guardado${b.size_bytes ? ' (' + (Number(b.size_bytes) / 1048576).toFixed(1).replace('.', ',') + ' MB)' : ''}.`],
+      pendiente: ['', 'Generando el respaldo del cierre… actualice en unos segundos.'],
+      failed: ['bad', `No se pudo guardar el respaldo del cierre. ${esc(b.error || '')} Revise la sección Respaldos.`],
+      sin_confirmar: ['bad', esc(b.error || 'El servidor no confirmó el respaldo.')] };
+    const m = map[b.status]; if (!m) return '';
+    return `<p class="notice small ${m[0]}" role="status">${icon('database')} ${m[1]}</p>`;
+  };
+
   function render() {
     const c = rep.closing; const by = rep.by_method || {}; const arq = calc();
     const maxWeek = Math.max(1, ...rep.week.map((w) => Number(w.total)));
@@ -118,6 +128,7 @@ export async function cashView(el) {
         <div class="cj-step"><span class="cj-n mp">MP</span><div class="grow"><b>Saldo real en Mercado Pago</b><small>Opcional: el saldo que ve en la aplicación</small></div><input id="cm" inputmode="decimal" placeholder="0" value="${esc(form.countedMp)}" aria-label="Saldo real en Mercado Pago"></div>
         <div class="cj-verdict" id="mv"></div>` : ''}
         <label class="field"><span>Nota (opcional)</span><textarea id="nt" maxlength="500" placeholder="Ej.: se retiraron $5.000 para pagar flete">${esc(form.notes)}</textarea></label>
+        ${backupLine(rep.backup)}
         ${stale ? '<p class="notice small">Se registraron cobros después del último cierre. Actualice el cierre para que incluya todo.</p>' : ''}
         <button type="button" class="btn primary block" id="close">${icon('lock')} ${c ? 'Actualizar el cierre de caja' : 'Cerrar caja del día'}</button>
       </section>

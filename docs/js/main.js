@@ -12,6 +12,7 @@ import { catalogView, cartView, supplierOrdersView } from './views/supplier.js';
 import { adminOrdersView } from './views/admin-orders.js';
 import { productsView, inventoryView } from './views/admin-catalog.js';
 import { usersView, auditView } from './views/admin-users.js';
+import { mountMyCommission } from './views/commission.js';
 import { backupsView } from './views/backups.js';
 import { statsView } from './views/stats.js';
 import { cashView } from './views/cash.js';
@@ -29,7 +30,7 @@ const NAV = {
   proveedor: [
     { path: 'catalogo', label: 'Catálogo', icon: 'grid', render: catalogView },
     { path: 'carrito', label: 'Carrito', icon: 'cart', render: cartView, badge: () => cartLines(state.cart) },
-    { path: 'pedidos', label: 'Mis pedidos', icon: 'list', render: supplierOrdersView },
+    { path: 'pedidos', label: 'Mis pedidos', icon: 'list', render: async (el) => { el.innerHTML = '<div class="stack"><div id="cmc"></div><div id="ord"></div></div>'; mountMyCommission($('#cmc', el)); return supplierOrdersView($('#ord', el)); } },
     { path: 'clientes', label: 'Clientes', icon: 'users', render: customersView },
     { path: 'cuenta', label: 'Cuenta', icon: 'user', render: accountView },
   ],

@@ -251,3 +251,7 @@ Desde **Administración › Respaldos › Importar** se puede volver a cargar el
 * **Pedido nuevo:** «Pedidos» parpadea en verde neón durante 60 s (administración y depósito).
 * **Avisos:** tocar el aviso emergente abre directamente el pedido (y lo marca leído); la campana sigue llevando a la lista.
 * **Modo Automático** de vuelta (claro de 6 a 18 h): es el valor inicial. Botón del tema: claro → oscuro → automático.
+
+### Datos de prueba masivos (v21.4)
+`supabase/17_datos_de_prueba_masivos.sql`: pegar entero en el SQL Editor de Supabase y ejecutar. Carga 1.200 productos, 15 preventistas y 3 operarios de depósito de prueba («[TEST] …», no pueden iniciar sesión), ~120 clientes y **400 pedidos** que recorren el flujo real (envío → aprobación por su administrador principal → preparación con faltantes → entrega y cobro, cancelaciones, rechazos, ingresos/ajustes de stock, pagos de clientes y de comisiones). Cambie `v_orders` (en el bloque `do $flow$`) para simular más; se puede repetir y agrega pedidos sin duplicar usuarios ni productos. No cierra la caja del día.
+Para borrar todo lo de prueba: `supabase/tests/carga/limpiar_pruebas.sql`. Probado en local: 400 pedidos en 3,5 s, 2.000 en 19 s, y los 15 controles de consistencia dan OK después de la carga.

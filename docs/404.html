@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#14313d">
+  <meta name="theme-color" content="#0b0c0e">
   <meta name="color-scheme" content="light dark">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-UNqmpb4TREnILeGJzp10TxnhmqBhBxijbxb8ssfkaSs=' 'sha256-3r2W2RN2t6jWEmCGskYU7v/1JgC21dkY7zf3Zj7P+v8=' https://cdn.jsdelivr.net https://esm.sh https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co https://xbwshdkebgnraemvnosz.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://xbwshdkebgnraemvnosz.supabase.co wss://xbwshdkebgnraemvnosz.supabase.co https://cdn.jsdelivr.net https://esm.sh https://unpkg.com; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Q1RWTqvAXMSYNMGthAFTt3Xqs3odiprNeQcgVRwJEsk=' 'sha256-3r2W2RN2t6jWEmCGskYU7v/1JgC21dkY7zf3Zj7P+v8=' https://cdn.jsdelivr.net https://esm.sh https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co https://xbwshdkebgnraemvnosz.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://xbwshdkebgnraemvnosz.supabase.co wss://xbwshdkebgnraemvnosz.supabase.co https://cdn.jsdelivr.net https://esm.sh https://unpkg.com; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
-  <script>(function(){try{var p=localStorage.getItem("deposito-theme");var C={oceano:["#0f2f3b","#0a1a21"],esmeralda:["#0d3b2e","#08201a"],rubi:["#3a0f1e","#1d0a11"]};var pal=localStorage.getItem("deposito-palette");if(!C[pal])pal="oceano";var h=new Date().getHours();var d=p==="dark"||(p!=="light"&&(h<6||h>=18));var r=document.documentElement;r.setAttribute("data-mode",d?"dark":"light");r.setAttribute("data-pref",p==="dark"||p==="light"?p:"auto");r.setAttribute("data-palette",pal);var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",C[pal][d?1:0])}catch(e){}})()</script>
+  <script>(function(){try{var d=localStorage.getItem("deposito-theme")!=="light";var r=document.documentElement;r.setAttribute("data-mode",d?"dark":"light");r.setAttribute("data-pref",d?"dark":"light");var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",d?"#0b0c0e":"#3a3f48")}catch(e){}})()</script>
   <meta name="description" content="Gestión de depósito, stock y pedidos">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <title>Depósito</title>
-  <link rel="stylesheet" href="css/app.css?v=5b32144175">
+  <link rel="stylesheet" href="css/app.css?v=87eae69703">
 </head>
 <body>
   <div id="app"><div class="authwrap"><div class="skeleton-list" aria-busy="true"><div></div><div></div></div></div></div>
@@ -52,7 +52,7 @@
     document.addEventListener('securitypolicyviolation', function (e) { console.warn('Bloqueado por la política de seguridad:', e.blockedURI, e.violatedDirective); });
   })();
   </script>
-  <script src="config.js?v=5b32144175"></script>
-  <script type="module" src="js/main.js?v=5b32144175"></script>
+  <script src="config.js?v=87eae69703"></script>
+  <script type="module" src="js/main.js?v=87eae69703"></script>
 </body>
 </html>

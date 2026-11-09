@@ -240,3 +240,8 @@ Desde **Administración › Respaldos › Importar** se puede volver a cargar el
 * `supabase/tests/escenarios.sql`, `comisiones_y_cierre.sql` y `seguridad.sql` (267 comprobaciones): se ejecutan con `psql` sobre una base de **prueba** (terminan con rollback). `supabase/tests/local/install_local.sh` arma esa base en un PostgreSQL local.
 * `supabase/tests/carga/`: simulación masiva (60 preventistas, 600 clientes, picos de 24 clientes simultáneos, stock en disputa, carreras de doble entrega/pago y 16 invariantes). `preparar_todo.sh` y `03_flujo_masivo.sh`. El **catálogo de 1.200 productos de prueba** (`catalogo_pruebas.sql`, prefijo `TST-`, categorías «[TEST] …») se puede cargar en un proyecto de pruebas; `limpiar_pruebas.sql` lo quita. **No cargarlo en la base real.**
 * Límite conocido: la función de respaldo maneja hasta ~150 MB de datos (≈35.000 pedidos sin fotos) y 50 MB comprimidos por archivo; más allá, usar los respaldos diarios de Supabase o `pg_dump`.
+
+### Apariencia (v21.1)
+* Solo dos temas: **Claro** y **Oscuro** (se quitaron Océano/Esmeralda/Rubí y el modo automático). Estilo vidrio, con grises plateados y detalles dorados. Sin preferencia guardada, arranca en oscuro. El botón sol/luna de arriba alterna.
+* **Presentación de entrada** (~5 s) al abrir el login: se puede saltar tocando la pantalla; no se muestra si el sistema pide «reducir movimiento».
+* **Windows / pantallas anchas:** el login quedaba pegado a la izquierda (caía en la columna del menú); ahora queda centrado.

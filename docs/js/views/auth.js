@@ -8,9 +8,23 @@ import { bioEnabled, bioSupported, bioVerify, bioAccounts, bioServerRegistered, 
 const ready = () => { window.__appReady = true; };
 const brand = `<div class="brand"><div class="logo">${logoSvg}</div><div><b>Depósito</b><div class="muted small">Gestión de stock y pedidos</div></div></div>`;
 
+let introShown = false;
+const reduced = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
+// Presentación de ~5 s al entrar al login (se puede saltar tocando la pantalla). Solo una vez por carga de la página.
+const introHtml = `<div class="intro" id="intro" role="presentation"><div class="intro-sweep"></div><div class="intro-in">
+  <div class="intro-mark"><div class="intro-glow"></div>
+    <svg viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="ig" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6efd9"/><stop offset=".5" stop-color="#c9a24a"/><stop offset="1" stop-color="#9aa1ad"/></linearGradient></defs>
+      <circle class="intro-ring" cx="60" cy="60" r="54"/><circle class="intro-ring r2" cx="60" cy="60" r="47"/>
+      <g transform="translate(30 30) scale(2.5)"><path class="intro-cube" d="M21 16V8l-9-5-9 5v8l9 5 9-5z" pathLength="90"/><path class="intro-cube" d="M3.3 7 12 12l8.7-5M12 22V12" pathLength="90"/></g></svg></div>
+  <div class="intro-name" aria-label="Depósito">${[...'DEPÓSITO'].map((c, i) => `<span style="--i:${i}">${c}</span>`).join('')}</div>
+  <div class="intro-line"></div><div class="intro-tag">Gestión de stock y pedidos</div></div>
+  <div class="intro-skip">Toque o haga clic para continuar</div></div>`;
+
 export function renderLogin(app) {
   ready();
-  app.innerHTML = `<div class="aurora"></div>${themeButton('iconbtn fab')}<div class="authwrap">${brand}
+  const withIntro = !introShown && !reduced(); introShown = true;
+  const wrapCls = withIntro ? ' has-intro' : '';
+  app.innerHTML = `<div class="aurora"></div>${themeButton('iconbtn fab' + wrapCls)}<div class="authwrap${wrapCls}">${brand}
     <form class="card stack" id="f" novalidate>
       <label class="field"><span>Correo electrónico</span><input name="email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" required></label>
       <label class="field"><span>Contraseña</span><input name="password" type="password" autocomplete="current-password" required></label>
@@ -18,6 +32,17 @@ export function renderLogin(app) {
       <button class="btn primary block" type="submit">Ingresar</button>
     </form>
     <p class="muted small" style="margin-top:14px">Si no tiene cuenta, solicítela al administrador del depósito.</p></div>`;
+  if (withIntro) {
+    app.insertAdjacentHTML('beforeend', introHtml);
+    const intro = $('#intro', app); let done = false;
+    const end = (fast) => {
+      if (done) return; done = true; clearTimeout(timer);
+      if (fast) { intro.classList.add('skip'); app.querySelectorAll('.has-intro').forEach((n) => n.classList.remove('has-intro')); }
+      setTimeout(() => intro.remove(), fast ? 400 : 700);
+    };
+    const timer = setTimeout(() => end(false), 5100);
+    intro.addEventListener('click', () => end(true));
+  }
   showBioLogin(app);
   const f = $('#f', app);
   f.addEventListener('submit', async (e) => {

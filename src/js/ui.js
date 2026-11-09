@@ -50,7 +50,7 @@ const P = {
 export const icon = (n, extra = '') => `<svg class="i${extra ? ' ' + extra : ''}" viewBox="0 0 24 24" aria-hidden="true">${P[n] ?? ''}</svg>`;
 export const logoSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + P.box + '</svg>';
 
-export const themeButton = (cls = 'iconbtn') => `<button type="button" class="${cls}" data-theme-toggle aria-label="Cambiar el tema: claro, oscuro o automático" title="Tema: claro / oscuro / automático">${icon('sun', 'ico-sun')}${icon('moon', 'ico-moon')}${icon('auto', 'ico-auto')}</button>`;
+export const themeButton = (cls = 'iconbtn') => `<button type="button" class="${cls}" data-theme-toggle aria-label="Cambiar entre tema claro y oscuro" title="Tema claro / oscuro">${icon('sun', 'ico-sun')}${icon('moon', 'ico-moon')}</button>`;
 export const soundButton = (id = 'snd') => `<button type="button" class="iconbtn" id="${id}" data-sound-toggle aria-label="Activar o silenciar sonidos de aviso" title="Sonido de avisos">${icon('volume', 'on')}${icon('mute', 'off')}</button>`;
 
 export const $ = (sel, root = document) => root.querySelector(sel);

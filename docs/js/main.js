@@ -30,7 +30,7 @@ const NAV = {
   proveedor: [
     { path: 'catalogo', label: 'Catálogo', icon: 'grid', render: catalogView },
     { path: 'carrito', label: 'Carrito', icon: 'cart', render: cartView, badge: () => cartLines(state.cart) },
-    { path: 'pedidos', label: 'Mis pedidos', icon: 'list', render: async (el) => { el.innerHTML = '<div class="stack"><div id="cmc"></div><div id="ord"></div></div>'; mountMyCommission($('#cmc', el)); return supplierOrdersView($('#ord', el)); } },
+    { path: 'pedidos', label: 'Mis pedidos', icon: 'list', render: async (el, ctx) => { if (ctx?.args?.[0]) return supplierOrdersView(el, ctx); el.innerHTML = '<div class="stack"><div id="cmc"></div><div id="ord"></div></div>'; mountMyCommission($('#cmc', el)); return supplierOrdersView($('#ord', el), ctx); } },
     { path: 'clientes', label: 'Clientes', icon: 'users', render: customersView },
     { path: 'cuenta', label: 'Cuenta', icon: 'user', render: accountView },
   ],

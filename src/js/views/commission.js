@@ -1,5 +1,5 @@
 // Comisiones de preventistas: tarjeta "Mi comisión" (el preventista) y ficha de configuración/pago (administración).
-import { state } from '../state.js';
+import { state, bus } from '../state.js';
 import { rpc, friendly } from '../api.js';
 import { esc, money, dateTime } from '../format.js';
 import { $, busy, ok, fail, modal, icon } from '../ui.js';
@@ -9,24 +9,44 @@ export const BASE_LABEL = { VENTAS: 'sobre lo vendido', GANANCIA: 'sobre la gana
 const pctText = (n) => `${String(Number(n)).replace('.', ',')}%`;
 
 // Tarjeta para el preventista: cuánto lleva ganado este mes, cuánto cobró y cuánto se le debe.
-export function commissionCardHtml(s) {
-  if (!s || !s.configured) return '';
-  const bal = Number(s.balance);
+export function commissionCardHtml(s, { live = false } = {}) {
+  const head = `<div class="row between"><h3>${icon('wallet')} Comisión en tiempo real</h3>${live ? '<span class="live-dot" title="Se actualiza sola"><i></i>En vivo</span>' : ''}</div>`;
+  if (!s) return '';
+  if (!s.configured) return `<section class="card stack cm-card" aria-label="Mi comisión">${head}<p class="muted">Todavía no tiene una comisión asignada. Cuando el administrador la configure, acá va a ver lo que va ganando y lo que le falta cobrar.</p></section>`;
   return `<section class="card stack cm-card" aria-label="Mi comisión">
-    <div class="row between"><h3>${icon('wallet')} Mi comisión</h3><span class="status s-ok">${esc(pctText(s.pct))} ${esc(BASE_LABEL[s.base] || '')}</span></div>
+    ${head}<span class="status s-ok" style="align-self:flex-start">${esc(pctText(s.pct))} ${esc(BASE_LABEL[s.base] || '')}</span>
     <div class="cm-grid">
       <div><small class="muted">Ganado este mes</small><b class="mono">${esc(money(s.month.earned))}</b><small class="muted">${s.month.orders} pedido${s.month.orders === 1 ? '' : 's'} entregado${s.month.orders === 1 ? '' : 's'}</small></div>
       <div><small class="muted">Ya cobrado</small><b class="mono">${esc(money(s.paid_total))}</b></div>
-      <div><small class="muted">Te falta cobrar</small><b class="mono">${esc(money(bal))}</b></div>
+      <div><small class="muted">Te falta cobrar</small><b class="mono">${esc(money(s.balance))}</b></div>
     </div>
     ${(s.payouts || []).length ? `<details><summary class="small">Últimos pagos recibidos</summary>${s.payouts.slice(0, 8).map((p) => `<div class="row between small"><span>${esc(dateTime(p.at))} · ${esc(p.method)}</span><b class="mono">${esc(money(p.amount))}</b></div>`).join('')}</details>` : ''}
     ${(s.orders || []).length ? `<details><summary class="small">Detalle de este mes</summary>${s.orders.slice(0, 40).map((o) => `<div class="row between small"><span class="ellipsis">${esc(o.order_number)} · ${esc(o.customer)}</span><b class="mono">${esc(money(o.amount))}</b></div>`).join('')}</details>` : ''}
-    <p class="muted small">La comisión se calcula cuando el pedido se entrega.</p></section>`;
+    <p class="muted small">La comisión se calcula cuando el pedido se entrega.${live && s.__at ? ` Actualizado ${esc(s.__at)}.` : ''}</p></section>`;
 }
 
-export async function mountMyCommission(box) {
-  try { box.innerHTML = commissionCardHtml(await rpc('commission_summary', {})); } catch { box.innerHTML = ''; }
+// Monta la tarjeta y la mantiene al día: se refresca al llegar un aviso (p. ej. pedido entregado), cada 30 s y al volver a la app.
+export function mountLiveCommission(box) {
+  let dead = false; let busy = false;
+  const load = async () => {
+    if (dead || busy) return; busy = true;
+    try {
+      const s = await rpc('commission_summary', {}); if (dead) return;
+      s.__at = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      box.innerHTML = commissionCardHtml(s, { live: true });
+    } catch (e) {
+      if (!dead && !box.innerHTML) box.innerHTML = `<section class="card stack cm-card"><h3>${icon('wallet')} Comisión en tiempo real</h3><p class="notice bad small">No se pudo cargar la comisión: ${esc(friendly(e))}. Pida al administrador que instale la actualización 16 en Supabase.</p></section>`;
+    } finally { busy = false; }
+  };
+  const timer = setInterval(() => { if (!document.hidden) load(); }, 30000);
+  const vis = () => { if (!document.hidden) load(); };
+  document.addEventListener('visibilitychange', vis);
+  const off = bus.on('notification', () => setTimeout(load, 800));
+  load();
+  return { dispose: () => { dead = true; clearInterval(timer); document.removeEventListener('visibilitychange', vis); off?.(); }, refresh: load };
 }
+
+export async function mountMyCommission(box) { return mountLiveCommission(box); }
 
 // Ficha para administración: configurar porcentaje/base (solo administrador principal) y registrar pagos.
 export function commissionModal(supplierId, name) {

@@ -5,14 +5,13 @@ import { icon, logoSvg, $, $$, toast, toastAction, notify, errorBox, spinner, th
 import { bioEnabled, bioLock, bioServerRegistered, recentlyActive, touchActive, softLockGet, softLockSet } from './bio.js';
 import { initTheme } from './theme.js';
 import { soundEnabled, soundChoiceMade, setSound, playSound, kindFor } from './sound.js';
-import { friendly, read } from './api.js';
+import { friendly, read, rpc } from './api.js';
 import { renderLogin, renderPending, renderSetupError, renderOffline } from './views/auth.js';
 import { accountView, noticesView } from './views/account.js';
 import { catalogView, cartView, supplierOrdersView } from './views/supplier.js';
 import { adminOrdersView } from './views/admin-orders.js';
 import { productsView, inventoryView } from './views/admin-catalog.js';
 import { usersView, auditView } from './views/admin-users.js';
-import { mountMyCommission } from './views/commission.js';
 import { backupsView } from './views/backups.js';
 import { statsView } from './views/stats.js';
 import { cashView } from './views/cash.js';
@@ -30,7 +29,7 @@ const NAV = {
   proveedor: [
     { path: 'catalogo', label: 'Catálogo', icon: 'grid', render: catalogView },
     { path: 'carrito', label: 'Carrito', icon: 'cart', render: cartView, badge: () => cartLines(state.cart) },
-    { path: 'pedidos', label: 'Mis pedidos', icon: 'list', render: async (el, ctx) => { if (ctx?.args?.[0]) return supplierOrdersView(el, ctx); el.innerHTML = '<div class="stack"><div id="cmc"></div><div id="ord"></div></div>'; mountMyCommission($('#cmc', el)); return supplierOrdersView($('#ord', el), ctx); } },
+    { path: 'pedidos', label: 'Mis pedidos', icon: 'list', render: supplierOrdersView },
     { path: 'clientes', label: 'Clientes', icon: 'users', render: customersView },
     { path: 'cuenta', label: 'Cuenta', icon: 'user', render: accountView },
   ],
@@ -96,7 +95,7 @@ function renderNav() {
   }
   items.forEach((n) => {
     const a = nav.querySelector(`[data-p="${n.path}"]`); if (!a) return;
-    const on = n.path === cur; a.classList.toggle('active', on);
+    const on = n.path === cur; a.classList.toggle('active', on); a.classList.toggle('neon', n.path === 'pedidos' && Date.now() < neonUntil);
     on ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
     const b = n.badge?.(); let c = a.querySelector('.nav-count');
     if (b) { if (!c) { c = document.createElement('i'); c.className = 'nav-count'; a.append(c); } if (c.textContent !== String(b)) { c.textContent = b; c.style.animation = 'none'; void c.offsetWidth; c.style.animation = ''; } }
@@ -181,10 +180,21 @@ function systemNotify(n) {
   if (!document.hidden || !('Notification' in window) || Notification.permission !== 'granted') return;
   navigator.serviceWorker?.ready.then((r) => r.showNotification(n.title, { body: n.body || '', tag: n.id, icon: './icons/icon-192.png', data: { order: n.order_id } })).catch(() => {});
 }
+// Parpadeo verde neón en «Pedidos» cuando llega un pedido nuevo (mínimo 60 s; se renueva si llega otro)
+const NEON_TITLES = new Set(['Nuevo pedido', 'Pedido para preparar']);
+let neonUntil = 0; let neonTimer = null;
+function flashOrders() {
+  neonUntil = Date.now() + 60000; renderNav();
+  clearTimeout(neonTimer); neonTimer = setTimeout(() => { neonUntil = 0; renderNav(); }, 60000 + 200);
+}
 function onNotification(n) {
   state.unread += 1; updateBell();
   playSound(kindFor(n.title));
-  notify(n.title, n.body || '', { kind: kindFor(n.title), onClick: () => { location.hash = '#/avisos'; } });
+  notify(n.title, n.body || '', { kind: kindFor(n.title), onClick: () => {
+    if (n.order_id) { rpc('mark_notifications_read', { p_ids: [n.id] }).then(() => bus.emit('refresh-unread')).catch(() => {}); location.hash = '#/pedidos/' + n.order_id; }
+    else location.hash = '#/avisos';
+  } });
+  if (NEON_TITLES.has(n.title)) flashOrders();
   systemNotify(n);
   bus.emit('notification', n);
   queueRefresh('orders');

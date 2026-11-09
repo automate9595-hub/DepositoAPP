@@ -3,7 +3,8 @@ import { state, bus } from '../state.js';
 import { read, rpc, friendly } from '../api.js';
 import { esc, dateTime, roleLabel } from '../format.js';
 import { icon, $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal } from '../ui.js';
-import { themePref, setTheme } from '../theme.js';
+import { themePref, setTheme, AUTO_LIGHT_FROM, AUTO_LIGHT_TO } from '../theme.js';
+import { mountLiveCommission } from './commission.js';
 import { soundEnabled, setSound, previewSound } from '../sound.js';
 import { bioSupported, bioEnabled, bioEnable, bioDisable, bioVerify, bioLockMinutes, setBioLockMinutes, bioServerRegistered, bioCredId, passkeyLogin, errDetail, explainError, LOCK_CHOICES } from '../bio.js';
 import { config } from '../supa.js';
@@ -17,6 +18,7 @@ export async function accountView(el) {
   const p = state.profile;
   const notifOk = 'Notification' in window;
   el.innerHTML = `<div class="stack">
+    ${p.role === 'proveedor' ? '<div id="cmlive"></div>' : ''}
     <div class="card stack">
       <div><h2>${esc(p.full_name || 'Sin nombre')}</h2><div class="muted small">${esc(p.email || '')} · ${esc(roleLabel(p.role))}</div></div>
       <form id="pf" class="stack">
@@ -32,7 +34,8 @@ export async function accountView(el) {
       </form>
     </div>
     <div class="card stack"><h3>Apariencia y sonido</h3>
-      <div class="field"><span>Modo</span><div class="seg" id="theme" role="group" aria-label="Modo claro u oscuro">${[['light', 'Claro', 'sun'], ['dark', 'Oscuro', 'moon']].map(([k, l, i]) => `<button type="button" data-th="${k}" class="${themePref() === k ? 'on' : ''}">${icon(i)}${l}</button>`).join('')}</div></div>
+      <div class="field"><span>Modo</span><div class="seg" id="theme" role="group" aria-label="Modo claro, oscuro o automático">${[['light', 'Claro', 'sun'], ['dark', 'Oscuro', 'moon'], ['auto', 'Automático', 'auto']].map(([k, l, i]) => `<button type="button" data-th="${k}" class="${themePref() === k ? 'on' : ''}">${icon(i)}${l}</button>`).join('')}</div>
+        <p class="auto-note">${icon('clock')}<span>Automático: modo claro de ${AUTO_LIGHT_FROM}:00 a ${AUTO_LIGHT_TO}:00 y oscuro de noche; cambia solo.</span></p></div>
       <div class="row between"><div class="grow"><b>Sonido de avisos</b><div class="muted small">Suena cuando llega un pedido o cambia su estado.</div></div>
         <button type="button" class="switch" id="sw" role="switch" aria-label="Sonido de avisos" aria-checked="${soundEnabled()}"></button></div>
       <button type="button" class="btn sm" id="tst">${icon('volume')} Probar sonido</button>
@@ -155,6 +158,8 @@ export async function accountView(el) {
     if (reg.waiting) { ok('Instalando la versión nueva…'); reg.waiting.postMessage('SKIP_WAITING'); } else ok('Ya tiene la última versión');
   });
   $('#out', el).addEventListener('click', () => bus.emit('logout'));
+  const live = $('#cmlive', el) ? mountLiveCommission($('#cmlive', el)) : null;
+  return { dispose: () => live?.dispose(), refresh: () => live?.refresh() };
 }
 
 const PAGE = 20;

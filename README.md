@@ -245,3 +245,9 @@ Desde **Administración › Respaldos › Importar** se puede volver a cargar el
 * Solo dos temas: **Claro** y **Oscuro** (se quitaron Océano/Esmeralda/Rubí y el modo automático). Estilo vidrio, con grises plateados y detalles dorados. Sin preferencia guardada, arranca en oscuro. El botón sol/luna de arriba alterna.
 * **Presentación de entrada** (~5 s) al abrir el login: se puede saltar tocando la pantalla; no se muestra si el sistema pide «reducir movimiento».
 * **Windows / pantallas anchas:** el login quedaba pegado a la izquierda (caía en la columna del menú); ahora queda centrado.
+
+### v21.3
+* **Comisión en tiempo real** en Cuenta del preventista (se actualiza sola: al llegar un aviso, cada 30 s y al volver a la app). Requiere haber ejecutado `16_comisiones_y_respaldo_en_cierre.sql`; si falta, la tarjeta lo avisa.
+* **Pedido nuevo:** «Pedidos» parpadea en verde neón durante 60 s (administración y depósito).
+* **Avisos:** tocar el aviso emergente abre directamente el pedido (y lo marca leído); la campana sigue llevando a la lista.
+* **Modo Automático** de vuelta (claro de 6 a 18 h): es el valor inicial. Botón del tema: claro → oscuro → automático.

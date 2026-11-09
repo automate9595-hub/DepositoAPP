@@ -7,7 +7,7 @@
   <meta name="color-scheme" content="light dark">
   <meta http-equiv="Content-Security-Policy" content="__CSP__">
   <meta name="referrer" content="no-referrer">
-  <script>(function(){try{var d=localStorage.getItem("deposito-theme")!=="light";var r=document.documentElement;r.setAttribute("data-mode",d?"dark":"light");r.setAttribute("data-pref",d?"dark":"light");var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",d?"#0b0c0e":"#3a3f48")}catch(e){}})()</script>
+  <script>(function(){try{var p=localStorage.getItem("deposito-theme");var h=new Date().getHours();var d=p==="dark"||(p!=="light"&&(h<6||h>=18));var r=document.documentElement;r.setAttribute("data-mode",d?"dark":"light");r.setAttribute("data-pref",p==="dark"||p==="light"?p:"auto");var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",d?"#0b0c0e":"#3a3f48")}catch(e){}})()</script>
   <meta name="description" content="Gestión de depósito, stock y pedidos">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png" type="image/png">

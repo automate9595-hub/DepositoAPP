@@ -78,6 +78,21 @@ function downloadJson(data, prefix = 'DepositoAPP-respaldo') {
   return blob.size;
 }
 
+// Respaldo rápido en este dispositivo (lo usa el cierre de caja cuando el servidor no puede guardarlo): todo menos fotos y avisos, comprimido.
+export async function downloadQuickBackup() {
+  const data = await buildBackup(GROUPS.map((g) => g.id), false, () => {});
+  delete data.tables.notifications;
+  data.reason = 'cierre_caja';
+  const json = JSON.stringify(data);
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  if (typeof CompressionStream !== 'undefined') {
+    const blob = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).blob();
+    saveBlob(blob, `DepositoAPP-cierre-${stamp}.json.gz`); return blob.size;
+  }
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+  saveBlob(blob, `DepositoAPP-cierre-${stamp}.json`); return blob.size;
+}
+
 // La restauración puede enviar varios MB: se usa una petición propia con tiempo límite largo
 // (el cliente común corta a los 20 segundos).
 async function longRpc(name, args, ms = 10 * 60 * 1000) {

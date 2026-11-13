@@ -1,6 +1,7 @@
 import { supabase, config } from '../supa.js';
 import { friendly } from '../api.js';
 import { bus } from '../state.js';
+import { playIntro, playWelcome } from '../sound.js';
 import { esc } from '../format.js';
 import { icon, logoSvg, $, busy, themeButton } from '../ui.js';
 import { bioEnabled, bioSupported, bioVerify, bioAccounts, bioServerRegistered, passkeyLogin, errDetail, explainError } from '../bio.js';
@@ -40,8 +41,13 @@ export function renderLogin(app) {
       if (fast) { intro.classList.add('skip'); app.querySelectorAll('.has-intro').forEach((n) => n.classList.remove('has-intro')); }
       setTimeout(() => intro.remove(), fast ? 400 : 700);
     };
+    const snd = playIntro();      // sonido sincronizado con la animación
+    if (!snd.started) {           // el navegador exige un toque antes de permitir audio: al primer toque suena el acorde final
+      const late = () => { document.removeEventListener('pointerdown', late); document.removeEventListener('keydown', late); snd.late(); };
+      document.addEventListener('pointerdown', late); document.addEventListener('keydown', late);
+    }
     const timer = setTimeout(() => end(false), 5100);
-    intro.addEventListener('click', () => end(true));
+    intro.addEventListener('click', () => { if (snd.started) snd.stop(); end(true); });
   }
   showBioLogin(app);
   const f = $('#f', app);
@@ -54,7 +60,7 @@ export function renderLogin(app) {
       try {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        if (data?.session) bus.emit('login', data.session); // arranca la sesión sin esperar el evento de la librería
+        if (data?.session) { playWelcome(); bus.emit('login', data.session); } // arranca la sesión sin esperar el evento de la librería
       } catch (x) { err.textContent = friendly(x); err.classList.remove('hidden'); }
     });
   });
@@ -117,13 +123,13 @@ async function showBioLogin(app) {
           await bioVerify(uid);
           const { data: d2 } = await supabase.auth.getSession();
           if (!d2?.session) throw Object.assign(new Error('La sesión venció. Ingrese con su contraseña.'), { plain: true });
-          bus.emit('login', d2.session); return;
+          playWelcome(); bus.emit('login', d2.session); return;
         }
         const token_hash = await passkeyLogin({ baseUrl: String(config.SUPABASE_URL).replace(/\/+$/, ''), anonKey: config.SUPABASE_ANON_KEY });
         let r = await supabase.auth.verifyOtp({ token_hash, type: 'email' });
         if (r.error) r = await supabase.auth.verifyOtp({ token_hash, type: 'magiclink' });
         if (r.error || !r.data?.session) throw Object.assign(new Error('No se pudo abrir la sesión. Ingrese con su contraseña.'), { plain: true });
-        bus.emit('login', r.data.session);
+        playWelcome(); bus.emit('login', r.data.session);
       } catch (x) {
         const m = explainError(x) + (x?.name === 'NotAllowedError' || x?.name === 'AbortError' ? ' Ingrese con su contraseña y actívela en Cuenta.' : '');
         err.innerHTML = `${esc(m)}<br><small class="muted">${esc(errDetail(x))}</small>`; err.classList.remove('hidden');

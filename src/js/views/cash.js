@@ -5,6 +5,7 @@ import { esc, money, compact, timeOnly, dateTime } from '../format.js';
 import { donut, mountChart } from '../charts.js';
 import { METHODS, todayAR, shiftDay, isDay, fmtDayLong, fmtDayShort, parseMoney, methodSegments, calcArqueo, calcMp, ARQUEO_LABEL, receiptText, receiptHtml } from '../cash-utils.js';
 import { printHtml, shareText, downloadCsv } from '../tools.js';
+import { downloadQuickBackup } from './backups.js';
 
 const METHOD = Object.fromEntries(METHODS.map((m) => [m.key, m]));
 const VERDICT_ICON = { pending: 'clock', ok: 'check', over: 'plus', short: 'alert' };
@@ -83,11 +84,16 @@ export async function cashView(el) {
   const mpCalc = () => calcMp({ opening: rep.mp?.opening, gross: rep.mp?.gross, pct: rep.mp?.pct, counted: nums().countedMp });
   const receiptOpts = () => { const n = nums(); const c = rep.closing; return { opening: n.opening, withdrawals: n.withdrawals, counted: n.counted, countedMp: n.countedMp, notes: form.notes, who: c?.closed_by_name || state.profile?.full_name || '', closedAt: c?.closed_at || null }; };
 
+  const principal = state.profile?.role === 'admin_principal';
+  async function localBackup(btn, auto) {
+    const run = async () => { try { const sz = await downloadQuickBackup(); ok(`Respaldo guardado en este dispositivo (${(sz / 1048576).toFixed(1).replace('.', ',')} MB).`); } catch (e) { fail('No se pudo generar el respaldo: ' + friendly(e)); } };
+    if (btn) await busy(btn, run); else await run();
+  }
   const backupLine = (b) => {
     if (!b || b.status === 'ninguno') return '';
     const map = { ok: ['ok', `Respaldo del cierre guardado${b.size_bytes ? ' (' + (Number(b.size_bytes) / 1048576).toFixed(1).replace('.', ',') + ' MB)' : ''}.`],
       pendiente: ['', 'Generando el respaldo del cierre… actualice en unos segundos.'],
-      failed: ['bad', `No se pudo guardar el respaldo del cierre. ${esc(b.error || '')} Revise la sección Respaldos.`],
+      failed: ['bad', `El servidor no pudo guardar el respaldo del cierre${b.error ? ' (' + esc(b.error) + ')' : ''}. ${principal ? '<button type="button" class="btn sm" id="bkl" style="margin-top:8px">Descargar respaldo en este dispositivo</button>' : 'Avise al administrador principal.'}`],
       sin_confirmar: ['bad', esc(b.error || 'El servidor no confirmó el respaldo.')] };
     const m = map[b.status]; if (!m) return '';
     return `<p class="notice small ${m[0]}" role="status">${icon('database')} ${m[1]}</p>`;
@@ -149,6 +155,7 @@ export async function cashView(el) {
         height: 170, aria: 'Cobros por hora', fmt: money, fmtAxis: compact, series: [{ key: 'h', name: 'Cobrado', color: '#2b7bb9', values: rep.hours.map((h) => Number(h.total)) }] });
     }
     $$('[data-day]', body).forEach((b) => b.addEventListener('click', () => go(b.dataset.day)));
+    $('#bkl', body)?.addEventListener('click', (e) => localBackup(e.currentTarget));
     $('#st', body)?.addEventListener('click', openForm); $('#oe2', body)?.addEventListener('click', openForm);
     bindArqueo(); updateCalc(arq);
   }
@@ -187,6 +194,7 @@ export async function cashView(el) {
       try {
         rep = await rpc('cash_close', { p_day: day, p_opening: n.opening, p_withdrawals: n.withdrawals, p_counted: n.counted, p_notes: form.notes.trim() || null, p_counted_mp: n.countedMp });
         ok('Caja cerrada. Ya puede enviar el comprobante.'); render();
+        if (principal && rep.backup?.status === 'failed') localBackup(null, true);   // sin respaldo del servidor: se guarda una copia en este equipo
         $('#sh', body)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } catch (e) { fail(friendly(e)); }
     });

@@ -740,3 +740,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .cm-grid > div { flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 10px; }
 .cm-grid > div b { white-space: nowrap; font-size: 1.1rem; }
 .cm-grid > div small:last-child:not(:first-child) { flex-basis: 100%; }
+
+/* Caja: las columnas nunca se ensanchan por un texto largo (antes la pantalla se salía del ancho del celular) */
+.cj, .cj-list { grid-template-columns: minmax(0, 1fr); }
+.cj > *, .cj-list > *, #cb, #cb > .card { min-width: 0; }
+.cj-pay > .grow, .cj-step > .grow { min-width: 0; }
+.cj-pay .ellipsis { max-width: 100%; }
+.cj .notice { overflow-wrap: anywhere; }
+html, body { overflow-x: clip; }

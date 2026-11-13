@@ -3,11 +3,11 @@ import { esc, money, dateTime, accountBadge, debounce, one, orderTitle, PUBLIC_C
 import { $, $$, busy, ok, fail, emptyBox, errorBox, spinner, modal, icon, confirmBox } from '../ui.js';
 import { can, state } from '../state.js';
 import { orderCard } from './order-common.js';
+import { mountPaySplit, SPLIT_METHODS } from '../pay-split.js';
 
 const isAdm = () => can('customers');
 const num = (v) => Number(String(v ?? '').trim().replace(/\s/g, '').replace(',', '.'));
 const FILTERS = [['', 'Todos'], ['CON_SALDO', 'Con saldo'], ['VENCIDO', 'Vencidos'], ['AL_DIA', 'Al día']];
-const METHODS = ['Efectivo', 'Mercado Pago', 'Transferencia', 'Cheque', 'Tarjeta', 'Otro'];
 
 const badge = (c) => (c.is_public ? accountBadge(null) : c.account_status ? accountBadge(c.account_status) : '');
 export const balanceHtml = (c) => {
@@ -110,20 +110,21 @@ function paymentForm(c) {
   const bal = Math.max(0, Number(c.balance || 0));
   return modal(`<h2>Registrar pago</h2><p class="muted small">${esc(c.name)} · saldo actual ${money(c.balance)}</p>
     <form id="f" class="stack" novalidate>
-      <label class="field"><span>Monto cobrado</span><input name="amount" inputmode="decimal" value="${bal > 0 ? bal : ''}" required autofocus></label>
+      <div id="split"></div>
       ${bal > 0 ? '<button type="button" class="btn sm" id="all">Cobrar saldo completo</button>' : ''}
-      <label class="field"><span>Medio de pago</span><select name="method">${METHODS.map((m) => `<option>${m}</option>`).join('')}</select></label>
-      <label class="field"><span>Nota (opcional)</span><input name="note" maxlength="300"></label>
+      <label class="field"><span>Nota (opcional)</span><input name="note" maxlength="280"></label>
       <p class="notice bad hidden" id="err" role="alert"></p>
       <div class="row"><button type="button" class="btn grow" data-close>Cancelar</button><button class="btn accent grow">Registrar</button></div></form>`, {
     onMount: (ov, close) => {
       const f = $('#f', ov); const err = $('#err', ov);
-      $('#all', ov)?.addEventListener('click', () => { f.amount.value = bal; });
+      const split = mountPaySplit($('#split', ov), { methods: SPLIT_METHODS, total: null, max: 3, initial: bal > 0 ? String(bal).replace('.', ',') : '', onChange: () => err.classList.add('hidden') });
+      $('#all', ov)?.addEventListener('click', () => { split.setAll?.(bal); });
       f.addEventListener('submit', async (e) => {
-        e.preventDefault(); err.classList.add('hidden'); const a = num(f.amount.value);
-        if (!(a > 0)) { err.textContent = 'Ingrese un monto mayor a 0.'; err.classList.remove('hidden'); return; }
+        e.preventDefault(); err.classList.add('hidden');
+        const problem = split.problem();
+        if (problem) { err.textContent = problem; err.classList.remove('hidden'); return; }
         await busy($('button:not([type=button])', f), async () => {
-          try { await rpc('customer_register_payment', { p_customer: c.id, p_amount: a, p_method: f.method.value, p_note: f.note.value || null }); close(true); }
+          try { await rpc('customer_register_payment_split', { p_customer: c.id, p_parts: split.parts(), p_note: f.note.value || null }); close(true); }
           catch (x) { err.textContent = friendly(x); err.classList.remove('hidden'); }
         });
       });

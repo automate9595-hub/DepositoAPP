@@ -6,7 +6,7 @@ export const GROUPS = [
   { id: 'stock', icon: 'layers', label: 'Reservas y movimientos de stock', tables: ['stock_reservations', 'stock_movements'] },
   { id: 'customers', icon: 'users', label: 'Clientes, cuentas corrientes, movimientos y pagos', tables: ['customers', 'customer_movements', 'order_payments'] },
   { id: 'people', icon: 'user', label: 'Usuarios del negocio, proveedores, depósito y roles', tables: ['profiles', 'suppliers', 'warehouse_workers', 'roles'] },
-  { id: 'cash', icon: 'wallet', label: 'Caja (aperturas y cierres) y comisiones de preventistas', tables: ['cash_openings', 'cash_closings', 'supplier_commissions', 'order_commissions', 'commission_payouts'] },
+  { id: 'cash', icon: 'wallet', label: 'Caja (aperturas, cierres y movimientos) y comisiones de preventistas', tables: ['cash_openings', 'cash_closings', 'cash_movements', 'supplier_commissions', 'order_commissions', 'commission_payouts'] },
   { id: 'system', icon: 'bell', label: 'Notificaciones y auditoría', tables: ['notifications', 'audit_logs', 'backup_settings', 'backup_runs'] },
 ];
 
@@ -107,6 +107,6 @@ export const TABLE_LABELS = {
   order_items: 'Detalle de pedidos', order_item_costs: 'Costos de pedidos', stock_reservations: 'Reservas', stock_movements: 'Movimientos de stock',
   order_status_history: 'Historial de estados', notifications: 'Notificaciones', audit_logs: 'Auditoría', customer_movements: 'Cuenta corriente',
   order_payments: 'Pagos', backup_settings: 'Ajustes de respaldo',
-  cash_openings: 'Aperturas de caja', cash_closings: 'Cierres de caja', supplier_commissions: 'Comisión por preventista',
+  cash_openings: 'Aperturas de caja', cash_closings: 'Cierres de caja', cash_movements: 'Movimientos de caja', supplier_commissions: 'Comisión por preventista',
   order_commissions: 'Comisiones por pedido', commission_payouts: 'Pagos de comisiones',
 };

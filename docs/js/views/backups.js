@@ -1,6 +1,6 @@
 import { supabase, config } from '../supa.js';
 import { role } from '../state.js';
-import { friendly } from '../api.js';
+import { friendly, rpc } from '../api.js';
 import { $, $$, busy, ok, fail, icon, modal, confirmBox } from '../ui.js';
 import { esc, dateTime } from '../format.js';
 import { GROUPS, readBackupText, parseBackup, summarize, fmtBytes, base64ToBytes, TABLE_LABELS } from '../backup-utils.js';
@@ -79,7 +79,8 @@ function downloadJson(data, prefix = 'DepositoAPP-respaldo') {
 }
 
 // Respaldo rápido en este dispositivo (lo usa el cierre de caja cuando el servidor no puede guardarlo): todo menos fotos y avisos, comprimido.
-export async function downloadQuickBackup() {
+// Arma el respaldo rápido del cierre (todo menos fotos y avisos) y lo comprime si el navegador puede.
+async function makeQuickBackup() {
   const data = await buildBackup(GROUPS.map((g) => g.id), false, () => {});
   delete data.tables.notifications;
   data.reason = 'cierre_caja';
@@ -87,10 +88,24 @@ export async function downloadQuickBackup() {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   if (typeof CompressionStream !== 'undefined') {
     const blob = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).blob();
-    saveBlob(blob, `DepositoAPP-cierre-${stamp}.json.gz`); return blob.size;
+    return { blob, name: `DepositoAPP-cierre-${stamp}.json.gz`, gz: true };
   }
-  const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
-  saveBlob(blob, `DepositoAPP-cierre-${stamp}.json`); return blob.size;
+  return { blob: new Blob([json], { type: 'application/json;charset=utf-8' }), name: `DepositoAPP-cierre-${stamp}.json`, gz: false };
+}
+export async function downloadQuickBackup() {
+  const { blob, name } = await makeQuickBackup();
+  saveBlob(blob, name); return blob.size;
+}
+// Guarda el respaldo del cierre en el almacenamiento del servidor (sin necesitar Vault) y lo registra en el cierre.
+// Devuelve el informe de caja actualizado. Si no se puede subir (permisos, tamaño, red), lanza el error.
+export async function uploadClosingBackup(day) {
+  const { blob, name, gz } = await makeQuickBackup();
+  if (!gz) throw Object.assign(new Error('Este navegador no puede comprimir el respaldo.'), { display: true });
+  if (blob.size > 50 * 1024 * 1024) throw Object.assign(new Error('El respaldo pesa más de 50 MB y no entra en el almacenamiento.'), { display: true });
+  const path = `cierre/${day}-${name.replace(/^DepositoAPP-cierre-/, '').replace(/[^A-Za-z0-9._-]/g, '-')}`;
+  const { error } = await supabase.storage.from('database-backups').upload(path, blob, { contentType: 'application/gzip', upsert: false, cacheControl: '3600' });
+  if (error) throw Object.assign(new Error(`No se pudo subir el respaldo (${error.message}). ¿Ejecutó 18_caja_movimientos_cobro_mixto_respaldo.sql?`), { display: true });
+  return rpc('cash_backup_register', { p_day: day, p_path: path, p_size: blob.size });
 }
 
 // La restauración puede enviar varios MB: se usa una petición propia con tiempo límite largo

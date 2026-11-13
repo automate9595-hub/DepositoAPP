@@ -37,25 +37,53 @@ export function parseMoney(v) {
 // Segmentos para el gráfico de anillo
 export const methodSegments = (by = {}) => METHODS.map((m) => ({ label: m.key, value: Number(by[m.key] || 0), color: m.color })).filter((s) => s.value > 0);
 
-// Arqueo: efectivo esperado = fondo inicial + cobros en efectivo − retiros; diferencia = contado − esperado
-export function calcArqueo({ opening = 0, withdrawals = 0, cashIncome = 0, counted = null } = {}) {
+// Arqueo: efectivo esperado = fondo inicial + cobros en efectivo + ingresos anotados − egresos anotados − otros retiros; diferencia = contado − esperado
+export function calcArqueo({ opening = 0, withdrawals = 0, cashIncome = 0, movIn = 0, movOut = 0, counted = null } = {}) {
   const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
-  const expected = r2(r2(opening) + r2(cashIncome) - r2(withdrawals));
+  const expected = r2(r2(opening) + r2(cashIncome) + r2(movIn) - r2(movOut) - r2(withdrawals));
   if (counted === null || counted === undefined || counted === '' || Number.isNaN(Number(counted))) return { expected, difference: null, state: 'pending' };
   const difference = r2(Number(counted) - expected);
   return { expected, difference, state: difference === 0 ? 'ok' : difference > 0 ? 'over' : 'short' };
 }
-// Mercado Pago: saldo esperado = saldo inicial + cobrado − retención (% de lo cobrado por Mercado Pago)
-export function calcMp({ opening = 0, gross = 0, pct = 0, counted = null } = {}) {
+// Mercado Pago: saldo esperado = saldo inicial + cobrado − retención (% de lo cobrado por Mercado Pago) + ingresos anotados − egresos anotados
+export function calcMp({ opening = 0, gross = 0, pct = 0, movIn = 0, movOut = 0, counted = null } = {}) {
   const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
   const retention = r2(r2(gross) * Number(pct || 0) / 100);
   const net = r2(r2(gross) - retention);
-  const expected = r2(r2(opening) + net);
+  const expected = r2(r2(opening) + net + r2(movIn) - r2(movOut));
   if (counted === null || counted === undefined || counted === '' || Number.isNaN(Number(counted))) return { retention, net, expected, difference: null, state: 'pending' };
   const difference = r2(Number(counted) - expected);
   return { retention, net, expected, difference, state: difference === 0 ? 'ok' : difference > 0 ? 'over' : 'short' };
 }
+// Movimientos manuales de caja: medios permitidos y resumen por medio (lo que trae el informe en rep.mov)
+export const MOVE_METHODS = [
+  { key: 'Efectivo', label: 'Efectivo', color: '#2f9e6b', icon: 'cash' },
+  { key: 'Mercado Pago', label: 'Mercado Pago', color: '#009ee3', icon: 'wallet' },
+  { key: 'Transferencia', label: 'Cuenta (transferencia)', color: '#2b7bb9', icon: 'send' },
+];
+export const MOVE_IDEAS = {
+  EGRESO: ['Proveedor', 'Flete', 'Sueldo', 'Retiro del dueño', 'Combustible', 'Gasto varios'],
+  INGRESO: ['Aporte del dueño', 'Venta de mostrador', 'Cobro de deuda', 'Otro ingreso'],
+};
+export function movSums(rep) {
+  const m = rep?.mov || {}; const n = (k, who) => Number(m[k]?.[who] || 0);
+  return { inCash: n('in', 'Efectivo'), outCash: n('out', 'Efectivo'), inMp: n('in', 'Mercado Pago'), outMp: n('out', 'Mercado Pago'),
+           inAcc: n('in', 'Transferencia'), outAcc: n('out', 'Transferencia'), inTotal: Number(m.in_total || 0), outTotal: Number(m.out_total || 0), count: Number(m.count || 0) };
+}
+// Formas de pago divididas: filas [{method, amount: "texto"}] → [{method, amount: número}] (sin filas vacías) y resumen contra un total
+export function cleanParts(rows = []) {
+  return rows.map((r) => ({ method: r.method, amount: parseMoney(r.amount) })).filter((r) => r.method && r.amount !== null && r.amount > 0);
+}
+export function splitSummary(rows = [], total = 0) {
+  const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
+  const parts = cleanParts(rows); const paid = r2(parts.reduce((a, p) => a + p.amount, 0)); const t = r2(total);
+  const repeated = new Set(parts.map((p) => p.method)).size !== parts.length;
+  return { parts, paid, total: t, missing: r2(Math.max(0, t - paid)), over: r2(Math.max(0, paid - t)), repeated };
+}
 export const ARQUEO_LABEL = { pending: 'Falta contar el efectivo', ok: 'La caja cuadra', over: 'Sobra dinero', short: 'Falta dinero' };
+
+// «Efectivo $ 300 + Mercado Pago $ 100»
+export const partsText = (parts = []) => parts.map((p) => `${p.method} ${money(p.amount)}`).join(' + ');
 
 // Texto para compartir (WhatsApp, correo…)
 export function receiptText(rep, arq, { opening = 0, withdrawals = 0, counted = null, countedMp = null, notes = '', who = '', title = 'Arqueo de caja' } = {}) {
@@ -65,13 +93,27 @@ export function receiptText(rep, arq, { opening = 0, withdrawals = 0, counted = 
   if (!Object.values(by).some((v) => Number(v) > 0)) lines.push('• Sin cobros registrados');
   lines.push(`*Total cobrado: ${money(rep.total)}* (${rep.count} cobro${rep.count === 1 ? '' : 's'})`);
   if (Number(rep.delivered_count) > 0) lines.push(`Pedidos entregados: ${rep.delivered_count} por ${money(rep.delivered_total)}`);
-  lines.push('', '*Arqueo de efectivo*', `Fondo inicial: ${money(opening)}`, `+ Cobros en efectivo: ${money(by.Efectivo || 0)}`, `− Retiros / gastos: ${money(withdrawals)}`, `= Efectivo esperado: ${money(arq.expected)}`);
+  const mv = movSums(rep);
+  lines.push('', '*Arqueo de efectivo*', `Fondo inicial: ${money(opening)}`, `+ Cobros en efectivo: ${money(by.Efectivo || 0)}`);
+  if (mv.inCash > 0) lines.push(`+ Ingresos anotados en efectivo: ${money(mv.inCash)}`);
+  if (mv.outCash > 0) lines.push(`− Egresos anotados en efectivo: ${money(mv.outCash)}`);
+  if (Number(withdrawals) > 0 || (mv.inCash === 0 && mv.outCash === 0)) lines.push(`− Otros retiros / gastos: ${money(withdrawals)}`);
+  lines.push(`= Efectivo esperado: ${money(arq.expected)}`);
   if (arq.state !== 'pending') lines.push(`Efectivo contado: ${money(counted)}`, `${ARQUEO_LABEL[arq.state]}${arq.difference ? `: ${money(Math.abs(arq.difference))}` : ''}`);
-  const mpOn = rep.mp && (Number(rep.mp.gross) > 0 || Number(rep.mp.opening) > 0 || (countedMp !== null && countedMp !== ''));
+  const mpOn = rep.mp && (Number(rep.mp.gross) > 0 || Number(rep.mp.opening) > 0 || mv.inMp > 0 || mv.outMp > 0 || (countedMp !== null && countedMp !== ''));
   if (mpOn) {
-    const mp = calcMp({ opening: rep.mp.opening, gross: rep.mp.gross, pct: rep.mp.pct, counted: countedMp });
-    lines.push('', '*Mercado Pago*', `Saldo inicial: ${money(rep.mp.opening)}`, `+ Cobrado: ${money(rep.mp.gross)}`, `− Retención (${rep.mp.pct}%): ${money(mp.retention)}`, `= Saldo esperado: ${money(mp.expected)}`);
+    const mp = calcMp({ opening: rep.mp.opening, gross: rep.mp.gross, pct: rep.mp.pct, movIn: mv.inMp, movOut: mv.outMp, counted: countedMp });
+    lines.push('', '*Mercado Pago*', `Saldo inicial: ${money(rep.mp.opening)}`, `+ Cobrado: ${money(rep.mp.gross)}`, `− Retención (${rep.mp.pct}%): ${money(mp.retention)}`);
+    if (mv.inMp > 0) lines.push(`+ Ingresos anotados: ${money(mv.inMp)}`);
+    if (mv.outMp > 0) lines.push(`− Egresos anotados: ${money(mv.outMp)}`);
+    lines.push(`= Saldo esperado: ${money(mp.expected)}`);
     if (mp.state !== 'pending') lines.push(`Saldo real: ${money(countedMp)}`, `${ARQUEO_LABEL[mp.state]}${mp.difference ? `: ${money(Math.abs(mp.difference))}` : ''}`);
+  }
+  const live = (rep.movements || []).filter((m) => !m.voided);
+  if (live.length) {
+    lines.push('', '*Movimientos de caja*');
+    for (const m of live) lines.push(`• ${m.kind === 'INGRESO' ? 'Ingreso' : 'Egreso'} · ${m.concept}: ${m.kind === 'INGRESO' ? '+' : '−'}${money(m.amount)} (${partsText(m.parts)})`);
+    lines.push(`Ingresos: ${money(mv.inTotal)} · Egresos: ${money(mv.outTotal)}`);
   }
   if (notes) lines.push('', `Nota: ${notes}`);
   if (who) lines.push('', `Cerró: ${who}`);
@@ -81,6 +123,8 @@ export function receiptText(rep, arq, { opening = 0, withdrawals = 0, counted = 
 // Comprobante imprimible (HTML autónomo, listo para imprimir o guardar como PDF)
 export function receiptHtml(rep, arq, { opening = 0, withdrawals = 0, counted = null, countedMp = null, notes = '', who = '', business = 'Depósito', closedAt = null } = {}) {
   const by = rep.by_method || {};
+  const mv = movSums(rep);
+  const moves = (rep.movements || []).filter((m) => !m.voided).map((m) => `<tr><td>${esc(timeOnly(m.at))}</td><td>${m.kind === 'INGRESO' ? 'Ingreso' : 'Egreso'} · ${esc(m.concept)}${m.note ? ` <small>(${esc(m.note)})</small>` : ''}</td><td>${esc(partsText(m.parts))}</td><td class="n">${m.kind === 'INGRESO' ? '+' : '−'}${esc(money(m.amount))}</td></tr>`).join('');
   const rows = METHODS.filter((m) => Number(by[m.key] || 0) > 0).map((m) => `<tr><td>${esc(m.key)}</td><td class="n">${esc(money(by[m.key]))}</td></tr>`).join('') || '<tr><td colspan="2">Sin cobros registrados</td></tr>';
   const pays = (rep.payments || []).map((p) => `<tr><td>${esc(timeOnly(p.at))}</td><td>${p.order_number ? `Pedido ${esc(p.order_number)} · ` : 'Pago a cuenta · '}${esc(p.customer || '')}${p.preventista ? ` <small>(${esc(p.preventista)})</small>` : ''}</td><td>${esc(p.method)}</td><td class="n">${esc(money(p.amount))}</td></tr>`).join('');
   const verdict = arq.state === 'pending' ? 'Pendiente de contar' : `${ARQUEO_LABEL[arq.state]}${arq.difference ? ': ' + money(Math.abs(arq.difference)) : ''}`;
@@ -94,14 +138,16 @@ export function receiptHtml(rep, arq, { opening = 0, withdrawals = 0, counted = 
 ${Number(rep.delivered_count) > 0 ? `<p class="sub">Pedidos entregados: ${esc(rep.delivered_count)} por ${esc(money(rep.delivered_total))}</p>` : ''}
 <h2>Arqueo de efectivo</h2><table>
 <tr><td>Fondo inicial</td><td class="n">${esc(money(opening))}</td></tr><tr><td>+ Cobros en efectivo</td><td class="n">${esc(money(by.Efectivo || 0))}</td></tr>
-<tr><td>− Retiros / gastos</td><td class="n">${esc(money(withdrawals))}</td></tr><tr><td><b>= Efectivo esperado</b></td><td class="n"><b>${esc(money(arq.expected))}</b></td></tr>
+${mv.inCash > 0 ? `<tr><td>+ Ingresos anotados en efectivo</td><td class="n">${esc(money(mv.inCash))}</td></tr>` : ''}${mv.outCash > 0 ? `<tr><td>− Egresos anotados en efectivo</td><td class="n">${esc(money(mv.outCash))}</td></tr>` : ''}
+${Number(withdrawals) > 0 || (mv.inCash === 0 && mv.outCash === 0) ? `<tr><td>− Otros retiros / gastos</td><td class="n">${esc(money(withdrawals))}</td></tr>` : ''}<tr><td><b>= Efectivo esperado</b></td><td class="n"><b>${esc(money(arq.expected))}</b></td></tr>
 <tr><td>Efectivo contado</td><td class="n">${counted === null || counted === '' ? '—' : esc(money(counted))}</td></tr></table>
 <div class="box">${esc(verdict)}</div>
-${rep.mp && (Number(rep.mp.gross) > 0 || Number(rep.mp.opening) > 0 || (countedMp !== null && countedMp !== '')) ? (() => { const mp = calcMp({ opening: rep.mp.opening, gross: rep.mp.gross, pct: rep.mp.pct, counted: countedMp });
+${rep.mp && (Number(rep.mp.gross) > 0 || Number(rep.mp.opening) > 0 || mv.inMp > 0 || mv.outMp > 0 || (countedMp !== null && countedMp !== '')) ? (() => { const mp = calcMp({ opening: rep.mp.opening, gross: rep.mp.gross, pct: rep.mp.pct, movIn: mv.inMp, movOut: mv.outMp, counted: countedMp });
   return `<h2>Mercado Pago</h2><table><tr><td>Saldo inicial</td><td class="n">${esc(money(rep.mp.opening))}</td></tr><tr><td>+ Cobrado</td><td class="n">${esc(money(rep.mp.gross))}</td></tr>
-<tr><td>− Retención (${esc(rep.mp.pct)}%)</td><td class="n">${esc(money(mp.retention))}</td></tr><tr><td><b>= Saldo esperado</b></td><td class="n"><b>${esc(money(mp.expected))}</b></td></tr>
+<tr><td>− Retención (${esc(rep.mp.pct)}%)</td><td class="n">${esc(money(mp.retention))}</td></tr>${mv.inMp > 0 ? `<tr><td>+ Ingresos anotados</td><td class="n">${esc(money(mv.inMp))}</td></tr>` : ''}${mv.outMp > 0 ? `<tr><td>− Egresos anotados</td><td class="n">${esc(money(mv.outMp))}</td></tr>` : ''}<tr><td><b>= Saldo esperado</b></td><td class="n"><b>${esc(money(mp.expected))}</b></td></tr>
 <tr><td>Saldo real</td><td class="n">${countedMp === null || countedMp === '' ? '—' : esc(money(countedMp))}</td></tr></table>${mp.state === 'pending' ? '' : `<div class="box">${esc(ARQUEO_LABEL[mp.state])}${mp.difference ? ': ' + esc(money(Math.abs(mp.difference))) : ''}</div>`}`; })() : ''}
 ${notes ? `<p><b>Nota:</b> ${esc(notes)}</p>` : ''}
+${moves ? `<h2>Movimientos de caja</h2><table><tr><th>Hora</th><th>Concepto</th><th>Medio</th><th class="n">Importe</th></tr>${moves}</table><p class="sub">Ingresos ${esc(money(mv.inTotal))} · Egresos ${esc(money(mv.outTotal))}</p>` : ''}
 ${pays ? `<h2>Detalle de cobros</h2><table><tr><th>Hora</th><th>Concepto</th><th>Medio</th><th class="n">Importe</th></tr>${pays}</table>` : ''}
 <div class="firma"><div>Cerró la caja</div><div>Controló (firma y aclaración)</div></div></body></html>`;
 }

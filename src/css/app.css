@@ -748,3 +748,31 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .cj-pay .ellipsis { max-width: 100%; }
 .cj .notice { overflow-wrap: anywhere; }
 html, body { overflow-x: clip; }
+
+/* ---------- v21.6 · Caja: movimientos y cobro mixto ---------- */
+.cj-mov-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.cj-mov-h h3 { margin: 0; } .cj-mov-h .row { gap: 8px; flex-wrap: nowrap; }
+.cj-mov-card .cj-pill { background: color-mix(in srgb, var(--c) 14%, transparent); border-color: color-mix(in srgb, var(--c) 35%, transparent); color: var(--text); }
+.cj-mv { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); min-width: 0; }
+.cj-mv:first-child { border-top: 0; } .cj-mv > .grow { min-width: 0; }
+.cj-mv.void { opacity: .55; } .cj-mv.void .mono { text-decoration: line-through; }
+.cj-mv-r { display: grid; justify-items: end; gap: 4px; flex: none; }
+.cj-mv .mono.in { color: var(--ok); } .cj-mv .mono.out { color: var(--bad); }
+.cj-mv .cj-edit { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.cj-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.cj-chips .chip { min-height: 34px; padding: 0 12px; font-size: .85rem; }
+.fl { display: block; font-size: .85rem; font-weight: 650; margin-bottom: 5px; color: var(--muted); }
+
+.ps-rows { display: grid; gap: 8px; }
+.ps-row { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 8px; align-items: center; }
+.ps-row:has(.ps-btn) { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto; }
+.ps-row:has(.ps-btn + .ps-btn) { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto auto; }
+.ps-row select, .ps-row input { min-width: 0; width: 100%; }
+.ps-row input { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ps-btn { border: 1px solid var(--line); background: var(--card-2); color: var(--text); border-radius: 10px; min-height: 40px; padding: 0 9px; font: inherit; font-size: .8rem; cursor: pointer; }
+.ps-x { font-size: 1.2rem; line-height: 1; padding: 0 11px; color: var(--bad); }
+.cj-mv-t b { display: block; overflow-wrap: anywhere; } .cj-mv-t .small { overflow-wrap: anywhere; }
+.ps-add { margin-top: 8px; }
+.ps-sum { display: flex; justify-content: space-between; gap: 10px; margin-top: 10px; padding: 10px 14px; border-radius: 12px; background: var(--idle-bg); font-size: .92rem; font-variant-numeric: tabular-nums; }
+.ps-sum b { white-space: nowrap; }
+.ps-sum.ok { background: var(--ok-bg); color: var(--ok); } .ps-sum.warn { background: var(--warn-bg); color: var(--warn); } .ps-sum.bad { background: var(--bad-bg); color: var(--bad); }
